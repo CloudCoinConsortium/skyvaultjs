@@ -1,0 +1,8 @@
+node_modules
+tests
+npm-debug.log
+run.help
+test.js
+rtest.js
+*.swp
+*.swo
