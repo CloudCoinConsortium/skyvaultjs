@@ -83,7 +83,7 @@
     "webpack": "^4.46.0",
     "webpack-cli": "^3.3.12"
   },
-  "homepage": "https://github.com/CloudCoinConsortium/raidajslibrary#readme",
+  "homepage": "https://github.com/CloudCoinConsortium/skyvaultjs#readme",
   "keywords": [
     "RAIDA",
     "es6",
@@ -104,7 +104,7 @@
   "name": "skyvaultjs",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CloudCoinConsortium/raidajslibrary.git"
+    "url": "git+https://github.com/CloudCoinConsortium/skyvaultjs.git"
   },
   "scripts": {
     "dev": "webpack --watch --mode=development --env production=dev --env web=node",
