@@ -30,14 +30,10 @@
     "#USER",
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/raidajs/-/raidajs-0.3.41.tgz",
   "_shasum": "590aeb4b3789dacd2cb5b468ff47b1e48de71751",
   "_spec": "skyvaultjs@^0.0.1",
   "_where": "C:\\Users\\sergm\\Documents\\work\\puppettest",
   "author": "Alexander Miroch & Sergiy Chernyshov",
-  "bugs": {
-    "url": "https://github.com/CloudCoinConsortium/raidajslibrary/issues"
-  },
   "dependencies": {
     "@babel/cli": "^7.13.16",
     "@babel/plugin-transform-runtime": "^7.13.15",
