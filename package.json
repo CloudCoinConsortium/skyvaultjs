@@ -1,6 +1,5 @@
 {
   "_from": "skyvaultjs@^0.0.1",
-  "_id": "skyvaultjs@0.0.1",
   "_inBundle": false,
   "_integrity": "sha512-6+AjQbmAyxq6exqr7tA5NLytq8R3m5I1BlAzKmzJsWwYUwZFCbL82gFk/Q8NL4TXJoEAGEvn9RhLlNA4ANC6EQ==",
   "_location": "/skyvaultjs",
@@ -35,13 +34,10 @@
   "_shasum": "590aeb4b3789dacd2cb5b468ff47b1e48de71751",
   "_spec": "skyvaultjs@^0.0.1",
   "_where": "C:\\Users\\sergm\\Documents\\work\\puppettest",
-  "author": {
-    "name": "Alexander Miroch"
-  },
+  "author": "Alexander Miroch & Sergiy Chernyshov",
   "bugs": {
     "url": "https://github.com/CloudCoinConsortium/raidajslibrary/issues"
   },
-  "bundleDependencies": false,
   "dependencies": {
     "@babel/cli": "^7.13.16",
     "@babel/plugin-transform-runtime": "^7.13.15",
@@ -112,5 +108,9 @@
     "webdev": "webpack --watch --mode=development --env production=dev --env web=web",
     "webprod": "webpack --mode=production --env production=prod --env web=web"
   },
-  "version": "0.0.1"
+  "version": "1.0.0",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  }
 }
