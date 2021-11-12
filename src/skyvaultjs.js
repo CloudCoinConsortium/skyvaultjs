@@ -1,6 +1,6 @@
 import axios from 'axios'
 import md5 from 'js-md5'
-import WebSocket from 'ws'
+var _ws = require('ws')
 import qs from 'qs'
 import CryptoJS from 'crypto-js'
 
@@ -4518,9 +4518,15 @@ for(let j = 0; j < 25; j++){
   }
 
   _wsConnect(url, data, i, timeout = 10000) {
+
     return new Promise(function (res, rej) {
+      let socket
 			setTimeout(()=> rej('timeout'), timeout)
-          let socket = new WebSocket(url)
+          if(_isBrowser)
+          socket = new WebSocket(url)
+          else {
+            socket = new _ws(url)
+          }
           socket.binaryType = "arraybuffer"
           socket.onopen = (e)=>{
             let dv = new DataView(data)

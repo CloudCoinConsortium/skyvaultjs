@@ -59,6 +59,7 @@ module.exports = function(options) {
   if (!isWeb) {
     config.externals = { canvas: {} }
   }
+	config.plugins.push(new webpack.ProvidePlugin({process: 'process/browser'}));
 	config.plugins.push(new CleanWebpackPlugin());
 
 
