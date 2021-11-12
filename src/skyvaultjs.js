@@ -24,7 +24,7 @@ class SkyVaultJS {
       domain : "cloudcoin.global",
       prefix : "raida",
       protocol: "https",
-      wsprotocol: "wss",
+      wsprotocol: "ws",
       timeout: 10000, // ms
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
@@ -753,6 +753,8 @@ async  apiDetect(params, callback = null) {
 
     console.log("got ticket " + ticket)
 */
+    let rquery = 0
+
     if (callback != null)
       callback(0, "register_dns")
 
@@ -4530,7 +4532,7 @@ for(let j = 0; j < 25; j++){
         socket.close(1000)
       }
       socket.onerror = (e) =>{
-        //console.log("not recieved message from", i)
+        console.log("ws error: ", e.message)
         rej(e)
         socket.close()
       }
