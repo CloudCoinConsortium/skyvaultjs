@@ -1,10 +1,10 @@
 {
-  "_from": "skyvaultjs@^0.0.1",
+  "_from": "skyvaultjs@^1.0.0",
+  "_id": "skyvaultjs@1.0.1",
   "_inBundle": false,
-  "_integrity": "sha512-6+AjQbmAyxq6exqr7tA5NLytq8R3m5I1BlAzKmzJsWwYUwZFCbL82gFk/Q8NL4TXJoEAGEvn9RhLlNA4ANC6EQ==",
+  "_integrity": "sha512-UDmWtzfpm0gQS7ejtVTvzd5loTLQXldKpTusPcdhlhbUWgOie2F4Lc/VBOqWagMXv1iB3nkZGHq0c6x75o9xjA==",
   "_location": "/skyvaultjs",
   "_phantomChildren": {
-    "@nicolo-ribaudo/chokidar-2": "2.1.8-no-fsevents",
     "base64-js": "1.5.1",
     "chokidar": "3.5.1",
     "commander": "4.1.1",
@@ -19,21 +19,28 @@
   "_requested": {
     "type": "range",
     "registry": true,
-    "raw": "skyvaultjs@^0.0.1",
+    "raw": "skyvaultjs@^1.0.0",
     "name": "skyvaultjs",
     "escapedName": "skyvaultjs",
-    "rawSpec": "^0.0.1",
+    "rawSpec": "^1.0.0",
     "saveSpec": null,
-    "fetchSpec": "^0.0.1"
+    "fetchSpec": "^1.0.0"
   },
   "_requiredBy": [
     "#USER",
     "/"
   ],
-  "_shasum": "590aeb4b3789dacd2cb5b468ff47b1e48de71751",
-  "_spec": "skyvaultjs@^0.0.1",
+  "_resolved": "https://registry.npmjs.org/skyvaultjs/-/skyvaultjs-1.0.1.tgz",
+  "_shasum": "2a9ddcf12a7579d59c6cefb5a4b9cf5744e67720",
+  "_spec": "skyvaultjs@^1.0.0",
   "_where": "C:\\Users\\sergm\\Documents\\work\\puppettest",
-  "author": "Alexander Miroch & Sergiy Chernyshov",
+  "author": {
+    "name": "Alexander Miroch & Sergiy Chernyshov"
+  },
+  "bugs": {
+    "url": "https://github.com/CloudCoinConsortium/skyvaultjs/issues"
+  },
+  "bundleDependencies": false,
   "dependencies": {
     "@babel/cli": "^7.13.16",
     "@babel/plugin-transform-runtime": "^7.13.15",
@@ -75,6 +82,10 @@
     "webpack": "^4.46.0",
     "webpack-cli": "^3.3.12"
   },
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
   "homepage": "https://github.com/CloudCoinConsortium/skyvaultjs#readme",
   "keywords": [
     "RAIDA",
@@ -104,9 +115,5 @@
     "webdev": "webpack --watch --mode=development --env production=dev --env web=web",
     "webprod": "webpack --mode=production --env production=prod --env web=web"
   },
-  "version": "1.0.1",
-  "directories": {
-    "lib": "lib",
-    "test": "tests"
-  }
+  "version": "1.0.2"
 }

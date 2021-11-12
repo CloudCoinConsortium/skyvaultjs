@@ -17,6 +17,7 @@ if (typeof(process.browser) !== 'undefined' && process.browser) {
   _isBrowser = true
 }
 
+
 class SkyVaultJS {
   // Contrustor
   constructor(options) {
@@ -69,6 +70,7 @@ class SkyVaultJS {
 
     if (this.options.sentryDSN)
       this.initSentry()
+
   }
 
 
@@ -4518,24 +4520,26 @@ for(let j = 0; j < 25; j++){
   _wsConnect(url, data, i, timeout = 10000) {
     return new Promise(function (res, rej) {
 			setTimeout(()=> rej('timeout'), timeout)
-      let socket = new WebSocket(url)
-      socket.binaryType = "arraybuffer"
-      socket.onopen = (e)=>{
-        let dv = new DataView(data)
-        dv.setUint8(2, i)
-        socket.send(data)
-      }
+          let socket = new WebSocket(url)
+          socket.binaryType = "arraybuffer"
+          socket.onopen = (e)=>{
+            let dv = new DataView(data)
+            dv.setUint8(2, i)
+            socket.send(data)
+          }
 
-      socket.onmessage = (e) =>{
-        //console.log("recieved message from ", i)
-        res(e)
-        socket.close(1000)
-      }
-      socket.onerror = (e) =>{
-        console.log("ws error: ", e.message)
-        rej(e)
-        socket.close()
-      }
+          socket.onmessage = (e) =>{
+            //console.log("recieved message from ", i)
+            res(e)
+            socket.close(1000)
+          }
+          socket.onerror = (e) =>{
+            console.log("ws error: ", e.message)
+            rej(e)
+            socket.close()
+          }
+
+
     })
   }
 
@@ -4574,8 +4578,7 @@ for(let j = 0; j < 25; j++){
         rparams = params
 
 }
-
-pm = this._wsConnect(rq, rparams, i, options.timeout);
+  pm = this._wsConnect(rq, rparams, i, options.timeout);
 
 /*
       if (method == 'GET') {
@@ -4617,6 +4620,7 @@ pm = this._wsConnect(rq, rparams, i, options.timeout);
       }
     })
     this._axInstance.defaults.timeout = this.options.timeout
+
   }
 
   // Generate the array of RAIDA server URLs
