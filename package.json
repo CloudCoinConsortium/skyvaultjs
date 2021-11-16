@@ -114,5 +114,5 @@
     "webdev": "webpack --watch --mode=development --env production=dev --env web=web",
     "webprod": "webpack --mode=production --env production=prod --env web=web"
   },
-  "version": "1.0.4"
+  "version": "1.0.5"
 }

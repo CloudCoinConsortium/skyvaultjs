@@ -33,7 +33,7 @@ class SkyVaultJS {
       debug: false,
       defaultRaidaForQuery: 7,
       defaultRaidaForBackupQuery: 14,
-      ddnsServer: "ddns.cloudcoin.global",
+      ddnsServer: "209.205.66.11",
       // max coins to transfer at a time
       maxCoins: 20000,
       maxCoinsPerIteraiton: 200,
@@ -258,15 +258,15 @@ class SkyVaultJS {
   // Echo
   async apiEcho(callback = null) {
     this.addBreadCrumbEntry("apiEcho")
-let ab = new ArrayBuffer(19)
+let ab = new ArrayBuffer(19 + 5)
 let d = new DataView(ab)
 d.setUint8(5, 0x04)//command echo
 d.setUint8(8, 0x01)//coin id
 d.setUint8(12, 0xAB)// echo
 d.setUint8(13, 0xAB)// echo
-d.setUint8(16, 0x01)//udp number
-d.setUint8(17, 0x3e)
-  d.setUint8(18, 0x3e) // Trailing chars
+d.setUint8(15, 0x01)//udp number//udp number
+d.setUint8(22, 0x3e)
+  d.setUint8(23, 0x3e) // Trailing chars
     let rqs = this._launchRequests("echo", ab, callback)
     let rv = {
       status: 'done',
@@ -760,7 +760,7 @@ async  apiDetect(params, callback = null) {
     if (callback != null)
       callback(0, "register_dns")
 
-    let url =  "https://" + this.options.ddnsServer + "/service/ddns/ddns_nv.php?"
+    let url =  "http://" + this.options.ddnsServer + "/service/ddns/ddns_nv.php?"
     url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
@@ -1759,7 +1759,7 @@ async  apiDetect(params, callback = null) {
     // Assemble input data for each Raida Server
     let ab, d;
     for (let i = 0; i < this._totalServers; i++) {
-      ab = new ArrayBuffer(35 + (19 * amountNotes) + 28);
+      ab = new ArrayBuffer(35 + (19 * amountNotes) + 27 + 50 + 5);
       d = new DataView(ab); //rqdata.push(ab)
 			d.setUint8(ab.byteLength -1, 0x3e)
 				d.setUint8(ab.byteLength -2, 0x3e) // Trailing chars
@@ -1781,18 +1781,18 @@ async  apiDetect(params, callback = null) {
         d.setUint8(8, 0x01); //coin id
         d.setUint8(12, 0xAB); // echo
         d.setUint8(13, 0xAB); // echo
-        d.setUint8(16, 0x01); //udp number
+        d.setUint8(15, 0x01);//udp number
         //body
-        d.setUint32(33 + (j * 19), coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+        d.setUint32(38 + (j * 19), coin.sn << 8); //rqdata[i].sns.push(coin.sn)
 
         for (let x = 0; x < 16; x++) {
-          d.setUint8(33 + (j * 19) + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+          d.setUint8(38 + (j * 19) + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
         }
 
       }
-      d.setUint32(33 + (amountNotes * 19), to << 8)//owner
+      d.setUint32(38 + (amountNotes * 19), to << 8)//owner
       for (let x = 0; x < 16; x++) {
-        d.setUint8(36 + (amountNotes * 19) + x, parseInt(guid.substr(x * 2, 2), 16));
+        d.setUint8(41 + (amountNotes * 19) + x, parseInt(guid.substr(x * 2, 2), 16));
       }//transaction guid
       rqdata.push(ab)
     }
@@ -1942,7 +1942,7 @@ async  apiDetect(params, callback = null) {
       let ab, d;
 
       for (let i = 0; i < this._totalServers; i++) {
-        ab = new ArrayBuffer(35 + (3 * coinsToReceive.length) + 59);
+        ab = new ArrayBuffer(35 + (3 * coinsToReceive.length) + 58 + 50 + 5);
         d = new DataView(ab); //rqdata.push(ab)
 
         d.setUint8(ab.byteLength - 1, 0x3e);
@@ -1952,22 +1952,22 @@ async  apiDetect(params, callback = null) {
           d.setUint8(8, 0x01); //coin id
           d.setUint8(12, 0xAB); // echo
           d.setUint8(13, 0xAB); // echo
-          d.setUint8(16, 0x01); //udp number
+          d.setUint8(15, 0x01)//udp number; //udp number
           //body
 
-          d.setUint32(33, coin.sn << 8);//owner
+          d.setUint32(38, coin.sn << 8);//owner
           for (let x = 0; x < 16; x++) {
-            d.setUint8(33 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+            d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
           }
           for(let j = 0; j< coinsToReceive.length; j++)
-          d.setUint32(52 + j * 3, coinsToReceive[j].sn << 8);
+          d.setUint32(57 + j * 3, coinsToReceive[j].sn << 8);
 
           for (let x = 0; x < 16; x++) {
-            d.setUint8(52 + coinsToReceive.length * 3 + x, parseInt(coin.pan[i].substr(x * 2, 2), 16));
+            d.setUint8(57 + coinsToReceive.length * 3 + x, parseInt(coin.pan[i].substr(x * 2, 2), 16));
           }//pan generator
 
         for (let x = 0; x < 16; x++) {
-          d.setUint8(68 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
+          d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
         } //transaction guid
         rqdata.push(ab);
       } // Launch Requests
@@ -2046,7 +2046,7 @@ async  apiDetect(params, callback = null) {
 
     let ab, d;
 		for (let i = 0; i < this._totalServers; i++) {
-		ab = new ArrayBuffer(35 + 19 +6 + (3*vsns.length));
+		ab = new ArrayBuffer(35 + 19 +6 + (3*vsns.length) + 5);
 		d = new DataView(ab);
 		d.setUint8(ab.byteLength -1, 0x3e);
 			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
@@ -2055,15 +2055,15 @@ async  apiDetect(params, callback = null) {
 			d.setUint8(8, 0x00);//coin id
 			d.setUint8(12, 0xAB);// echo
 			d.setUint8(13, 0xAB);// echo
-			d.setUint8(16, 0x01);//udp number
-			d.setUint32(33, idcc.sn<<8)
+			d.setUint8(15, 0x01)//udp number;//udp number
+			d.setUint32(38, idcc.sn<<8)
 			for (let x = 0; x < 16; x++) {
-				d.setUint8(33+(3+x), parseInt(idcc.an[i].substr(x*2, 2), 16))
+				d.setUint8(38+(3+x), parseInt(idcc.an[i].substr(x*2, 2), 16))
 			}
-      d.setUint32(52, extraSN<<8)
-      d.setUint32(55, this.options.changeMakerId<<8)
+      d.setUint32(57, extraSN<<8)
+      d.setUint32(60, this.options.changeMakerId<<8)
       for (let j = 0; j < vsns.length; j++) {
-        d.setUint32(58 + j * 3) << 8;
+        d.setUint32(63 + j * 3) << 8;
       }
 			rqdata.push(ab)
 		}
@@ -2581,7 +2581,7 @@ let guid = this._generatePan()
     let rqdata = []
 
           for (let i = 0; i < this._totalServers; i++) {
-            ab = new ArrayBuffer(35 + (3 * coinsToSend.length) + 43);
+            ab = new ArrayBuffer(35 + (3 * coinsToSend.length) + 45 + 50 + 5);
             d = new DataView(ab); //rqdata.push(ab)
 
             d.setUint8(ab.byteLength - 1, 0x3e);
@@ -2591,19 +2591,19 @@ let guid = this._generatePan()
               d.setUint8(8, 0x01); //coin id
               d.setUint8(12, 0xAB); // echo
               d.setUint8(13, 0xAB); // echo
-              d.setUint8(16, 0x01); //udp number
+              d.setUint8(15, 0x01)//udp number; //udp number
               //body
 
-              d.setUint32(33, coin.sn << 8);//owner
+              d.setUint32(38, coin.sn << 8);//owner
               for (let x = 0; x < 16; x++) {
-                d.setUint8(33 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+                d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
               }
               for(let j = 0; j< coinsToSend.length; j++)
-              d.setUint32(52 + j * 3, coinsToSend[j].sn << 8);
+              d.setUint32(57 + j * 3, coinsToSend[j].sn << 8);
 
 
             for (let x = 0; x < 16; x++) {
-              d.setUint8(52 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
+              d.setUint8(57 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
             } //transaction guid
             rqdata.push(ab);
           }
@@ -2630,7 +2630,7 @@ let guid = this._generatePan()
     let seed = this._generatePan().substring(0, 8)
     let ab, d;
   		for (let i = 0; i < this._totalServers; i++) {
-  		ab = new ArrayBuffer(35 + 4);
+  		ab = new ArrayBuffer(35 + 4 + 5);
   		d = new DataView(ab);
   		d.setUint8(ab.byteLength -1, 0x3e);
   			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
@@ -2639,9 +2639,9 @@ let guid = this._generatePan()
   			d.setUint8(8, 0x00);//coin id
   			d.setUint8(12, 0xAB);// echo
   			d.setUint8(13, 0xAB);// echo
-  			d.setUint8(16, 0x01);//udp number
-  			d.setUint32(33, sn<<8)
-  			d.setUint8(36, denomination)
+  			d.setUint8(15, 0x01)//udp number;//udp number
+  			d.setUint32(38, sn<<8)
+  			d.setUint8(61, denomination)
   			rqdata.push(ab)
   		}
 
@@ -2985,7 +2985,7 @@ let guid = this._generatePan()
     }*/
 		let ab, d;
 		for (let i = 0; i < this._totalServers; i++) {
-		ab = new ArrayBuffer(35 + 19);
+		ab = new ArrayBuffer(35 + 19 + 5);
 		d = new DataView(ab);
 		d.setUint8(ab.byteLength -1, 0x3e);
 			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
@@ -2994,10 +2994,10 @@ let guid = this._generatePan()
 			d.setUint8(8, 0x00);//coin id
 			d.setUint8(12, 0xAB);// echo
 			d.setUint8(13, 0xAB);// echo
-			d.setUint8(16, 0x01);//udp number
-			d.setUint32(33, coin.sn<<8)
+			d.setUint8(15, 0x01)//udp number;//udp number
+			d.setUint32(38, coin.sn<<8)
 			for (let x = 0; x < 16; x++) {
-				d.setUint8(33+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
+				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
 			}
 			rqdata.push(ab)
 		}
@@ -3866,7 +3866,7 @@ let status = dView.getUint8(2);
     // Assemble input data for each Raida Server
     let ab, d;
 		for (let i = 0; i < this._totalServers; i++) {
-		ab = new ArrayBuffer(36 + 19);
+		ab = new ArrayBuffer(36 + 19 + 5);
 		d = new DataView(ab);
 		d.setUint8(ab.byteLength -1, 0x3e);
 			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
@@ -3875,11 +3875,11 @@ let status = dView.getUint8(2);
 			d.setUint8(8, 0x01);//coin id
 			d.setUint8(12, 0xAB);// echo
 			d.setUint8(13, 0xAB);// echo
-			d.setUint8(16, 0x01);//udp number
+			d.setUint8(15, 0x01)//udp number;//udp number
       d.setUint8(ab.byteLength -3, 250)//biggest returned denomination
-			d.setUint32(33, coin.sn<<8)
+			d.setUint32(38, coin.sn<<8)
 			for (let x = 0; x < 16; x++) {
-				d.setUint8(33+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
+				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
 			}
 			rqdata.push(ab)
 		}
@@ -3920,9 +3920,14 @@ let status = dView.getUint8(2);
         }
 
         a++
-        let coins = new DataView(response, 12)
-        for (let i = 0; i < (coins.byteLength/3); i++) {
-          let key = coins.getUint32(i*3)>>8
+        let coinsplit = new DataView(response, 12)
+        let amount = coinsplit.byteLength/3
+        let coins = new ArrayBuffer(coinsplit.byteLength + 1)
+        let coinsView = new DataView(coins)
+        for(let x = 0; x < coins.byteLength -1; x++)
+          coinsView.setUint8(x,coinsplit.getUint8(x))
+        for (let i = 0; i < amount; i++) {
+          let key = coinsView.getUint32(i * 3) >> 8
           if (!(key in rv.coins)) {
             rv.coins[key] = {
               passed: 0
@@ -3985,7 +3990,7 @@ let status = dView.getUint8(2);
         return this.__counterfeitResult
       })
 
-      let ab = new ArrayBuffer(19+16+16+(4*25)+(3*coins.length))
+      let ab = new ArrayBuffer(19+16+16+(4*25)+(3*coins.length)+5)
       let d = new DataView(ab)
       d.setUint8(ab.byteLength -1, 0x3e);
         d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
@@ -3994,23 +3999,23 @@ let status = dView.getUint8(2);
         d.setUint8(8, 0x01);//coin id
         d.setUint8(12, 0xAB);// echo
         d.setUint8(13, 0xAB);// echo
-        d.setUint8(16, 0x01);//udp number
+        d.setUint8(15, 0x01)//udp number;//udp number
 
         for (let x = 0; x < 16; x++) {
-          d.setUint8(33 + (3*coins.length) + x, parseInt(coins[0].pan[raidaIdx].substr(x * 2, 2), 16));
+          d.setUint8(38 + (3*coins.length) + x, parseInt(coins[0].pan[raidaIdx].substr(x * 2, 2), 16));
         }
 
       let i = 0
       for (let sn in resultData['result']) {
         let coin = resultData['result'][sn]
-        d.setUint32(33 + (i * 3), coin.sn << 8)
+        d.setUint32(38 + (i * 3), coin.sn << 8)
         i++
       }
 for(let j = 0; j < 25; j++){
   if ('tickets' in rcoins[coins[0].sn])
-  d.setUint32(33 + (3*coins.length) + 16 +(j*4), resultData['result'][coins[0].sn].tickets[i])
+  d.setUint32(38 + (3*coins.length) + 16 +(j*4), resultData['result'][coins[0].sn].tickets[i])
   else {
-    d.setUint32(33 + (3*coins.length) + 16+(j*4), 0)
+    d.setUint32(38 + (3*coins.length) + 16+(j*4), 0)
   }
 }
 
@@ -4062,7 +4067,7 @@ for(let j = 0; j < 25; j++){
 
     // Assemble input data for each Raida Server
     for (let i = 0; i < this._totalServers; i++) {
-      let ab = new ArrayBuffer(35 + (bodylength*amount))
+      let ab = new ArrayBuffer(35 + (bodylength*amount) +5)
       let d = new DataView(ab)
       d.setUint8(ab.byteLength -1, 0x3e)
 				d.setUint8(ab.byteLength -2, 0x3e) // Trailing chars
@@ -4088,14 +4093,14 @@ for(let j = 0; j < 25; j++){
         d.setUint8(8, 0x01)//coin id
         d.setUint8(12, 0xAB)// echo
         d.setUint8(13, 0xAB)// echo
-        d.setUint8(16, 0x01)//udp number
+        d.setUint8(15, 0x01)//udp number//udp number
 
         //body
-        d.setUint32(33+(j*bodylength), coin.sn<<8)//rqdata[i].sns.push(coin.sn)
+        d.setUint32(38+(j*bodylength), coin.sn<<8)//rqdata[i].sns.push(coin.sn)
         for (let x = 0; x < 16; x++) {
-          d.setUint8(33+(j*bodylength)+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
+          d.setUint8(38+(j*bodylength)+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
           if(pan)
-          d.setUint8(33+(j*bodylength)+(19+x), parseInt(coin.pan[i].substr(x*2, 2), 16))
+          d.setUint8(38+(j*bodylength)+(19+x), parseInt(coin.pan[i].substr(x*2, 2), 16))
         }//rqdata[i].ans.push(coin.an[i])
         //rqdata[i].pans.push(coin.pan[i])
 
