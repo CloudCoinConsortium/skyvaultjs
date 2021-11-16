@@ -1,6 +1,5 @@
 {
   "_from": "skyvaultjs@^1.0.0",
-  "_id": "skyvaultjs@1.0.1",
   "_inBundle": false,
   "_integrity": "sha512-UDmWtzfpm0gQS7ejtVTvzd5loTLQXldKpTusPcdhlhbUWgOie2F4Lc/VBOqWagMXv1iB3nkZGHq0c6x75o9xjA==",
   "_location": "/skyvaultjs",
@@ -115,5 +114,5 @@
     "webdev": "webpack --watch --mode=development --env production=dev --env web=web",
     "webprod": "webpack --mode=production --env production=prod --env web=web"
   },
-  "version": "1.0.3"
+  "version": "1.0.4"
 }

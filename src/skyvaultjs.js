@@ -13,7 +13,7 @@ import {version} from '../package.json';
 import allSettled from 'promise.allsettled'
 
 let _isBrowser = false
-if (typeof(process.browser) !== 'undefined' && process.browser) {
+if (typeof window !== 'undefined') {
   _isBrowser = true
 }
 
@@ -2991,7 +2991,7 @@ let guid = this._generatePan()
 			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
 			d.setUint8(2, i) //raida id
 			d.setUint8(5, 110);//command ballance
-			d.setUint8(8, 0x01);//coin id
+			d.setUint8(8, 0x00);//coin id
 			d.setUint8(12, 0xAB);// echo
 			d.setUint8(13, 0xAB);// echo
 			d.setUint8(16, 0x01);//udp number
