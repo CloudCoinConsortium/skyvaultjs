@@ -2060,8 +2060,7 @@ async  apiDetect(params, callback = null) {
 		for (let i = 0; i < this._totalServers; i++) {
 		ab = new ArrayBuffer(35 + 19 +6 + (3*vsns.length) + 5);
 		d = new DataView(ab);
-		d.setUint8(ab.byteLength -1, 0x3e);
-			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
+		 // Trailing chars
 			d.setUint8(2, i) //raida id
 			d.setUint8(5, 123);//command break in bank
 			d.setUint8(8, 0x00);//coin id
@@ -2072,11 +2071,13 @@ async  apiDetect(params, callback = null) {
 			for (let x = 0; x < 16; x++) {
 				d.setUint8(38+(3+x), parseInt(idcc.an[i].substr(x*2, 2), 16))
 			}
-      d.setUint32(57, extraSN<<8)
+      d.setUint32(57, extraSn<<8)
       d.setUint32(60, this.options.changeMakerId<<8)
       for (let j = 0; j < vsns.length; j++) {
-        d.setUint32(63 + j * 3) << 8;
+        d.setUint32(63 + j * 3, vsvn[j] << 8);
       }
+      d.setUint8(ab.byteLength -1, 0x3e);
+  			d.setUint8(ab.byteLength -2, 0x3e);
 			rqdata.push(ab)
 		}
 
@@ -2450,7 +2451,7 @@ async  apiDetect(params, callback = null) {
       if (!this._validateGuid(guid))
         return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_GUID, "Failed to validate GUID")
     }
-
+    let from
     if ('from' in params)
       from = params.from
     else
@@ -2506,14 +2507,14 @@ async  apiDetect(params, callback = null) {
     let b = 0
     let response = {}
     for (; b < iterations; b++) {
-      let from = b * batch
+      from = b * batch
       let tol = from + batch
       localCoinsToSend = coinsToSend.slice(from,tol)
       let lr = await this._doTransfer(coin, to, tags, localCoinsToSend, callback, b)
       response = this._mergeResponse(response, lr)
     }
 
-    let from = b * batch
+    from = b * batch
     if (from < coinsToSend.length) {
       let tol = coinsToSend.length
       localCoinsToSend = coinsToSend.slice(from,tol)
@@ -2528,7 +2529,7 @@ async  apiDetect(params, callback = null) {
 
     let pm = new Promise((resolve, reject) => {
       setTimeout(() => {
-        this._fixTransfer()
+        //this._fixTransfer()
       }, 500)
     })
 
@@ -2590,8 +2591,9 @@ async  apiDetect(params, callback = null) {
   async _doTransfer(coin, to, tags, coinsToSend, callback, iteration) {
     this.addBreadCrumbEntry("_doTransfer")
 let guid = this._generatePan()
+let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
     let rqdata = []
-
+let ab, d
           for (let i = 0; i < this._totalServers; i++) {
             ab = new ArrayBuffer(35 + (3 * coinsToSend.length) + 45 + 50 + 5);
             d = new DataView(ab); //rqdata.push(ab)
@@ -2604,19 +2606,25 @@ let guid = this._generatePan()
               d.setUint8(12, 0xAB); // echo
               d.setUint8(13, 0xAB); // echo
               d.setUint8(15, 0x01)//udp number; //udp number
-              //body
+              for (let x = 0; x < 16; x++) {
+                d.setUint8(22 + x, challange[x]);
+              }
+              d.setUint32(38, coin.sn << 8); //owner
 
-              d.setUint32(38, coin.sn << 8);//owner
               for (let x = 0; x < 16; x++) {
                 d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
               }
-              for(let j = 0; j< coinsToSend.length; j++)
-              d.setUint32(57 + j * 3, coinsToSend[j].sn << 8);
 
+              for (let j = 0; j < coinsToSend.length; j++) d.setUint32(57 + j * 3, coinsToSend[j] << 8);
 
-            for (let x = 0; x < 16; x++) {
-              d.setUint8(57 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
-            } //transaction guid
+              d.setUint32(57 + coinsToSend.length * 3,to <<8);
+
+              for (let x = 0; x < 16; x++) {
+                d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
+              } //transaction guid
+
+              d.setUint8(83 + coinsToSend.length * 3,3);//ty
+
             rqdata.push(ab);
           }
 
@@ -2653,7 +2661,7 @@ let guid = this._generatePan()
   			d.setUint8(13, 0xAB);// echo
   			d.setUint8(15, 0x01)//udp number;//udp number
   			d.setUint32(38, sn<<8)
-  			d.setUint8(61, denomination)
+  			d.setUint8(41, denomination)
   			rqdata.push(ab)
   		}
 
@@ -2672,7 +2680,10 @@ let guid = this._generatePan()
         if (dView2.byteLength < 3)
           return
           let key, dem;
-          let d1, d5, d25, d100
+          let d1 = [];
+          let d5 = [];
+          let d25 = [];
+          let d100 = [];
           for (let i = 0; i < coins.byteLength / 3; i++) {
             key = coins.getUint32(i * 3) >> 8;
             switch (this.getDenomination(key)) {
