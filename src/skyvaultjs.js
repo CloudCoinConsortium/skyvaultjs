@@ -892,12 +892,13 @@ async  apiDetect(params, callback = null) {
         denomination: this.getDenomination(coin.sn),
       })
     }*/
-    rqdata = this._formRequestData(coin, false, 11)
+    let rqdata = this._formRequestData([coin], false, 11)
 
     let rqs = this._launchRequests("get_ticket", rqdata, callback)
     let rv = {
-      'status' : 'done',
-      'tickets' : []
+      status : 'done',
+      code: SkyVaultJS.ERR_NO_ERROR,
+      tickets : []
     }
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
@@ -1933,8 +1934,10 @@ async  apiDetect(params, callback = null) {
     }
 
     let rqdata = []
+    let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
     let nns = new Array(coinsToReceive.length)
     nns.fill(this.options.defaultCoinNn)
+    let guid = this._generatePan();
 
     let response
     if (coinsToReceive.length > 0) {
@@ -1948,28 +1951,34 @@ async  apiDetect(params, callback = null) {
         d.setUint8(ab.byteLength - 1, 0x3e);
         d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
           d.setUint8(2, i); //raida id
-          d.setUint8(5, 104); //command deposit
+          d.setUint8(5, 104); //command withdraw
           d.setUint8(8, 0x01); //coin id
           d.setUint8(12, 0xAB); // echo
           d.setUint8(13, 0xAB); // echo
           d.setUint8(15, 0x01)//udp number; //udp number
           //body
-
-          d.setUint32(38, coin.sn << 8);//owner
           for (let x = 0; x < 16; x++) {
-            d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+            d.setUint8(22 + x, challange[x]);
           }
-          for(let j = 0; j< coinsToReceive.length; j++)
-          d.setUint32(57 + j * 3, coinsToReceive[j].sn << 8);
+          d.setUint32(38, coin.sn << 8); //owner
+
+          for (let x = 0; x < 16; x++) {
+            d.setUint8(41 +  x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+          }
+
+          for (let j = 0; j < coinsToReceive.length; j++) d.setUint32(57 + j * 3, coinsToReceive[j] << 8);
 
           for (let x = 0; x < 16; x++) {
             d.setUint8(57 + coinsToReceive.length * 3 + x, parseInt(coin.pan[i].substr(x * 2, 2), 16));
-          }//pan generator
+          } //pan generator
 
-        for (let x = 0; x < 16; x++) {
-          d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
-        } //transaction guid
-        rqdata.push(ab);
+
+          for (let x = 0; x < 16; x++) {
+            d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
+          } //transaction guid
+
+          d.setUint8(95 + coinsToReceive.length * 3, 1);
+
       } // Launch Requests
 
       // Launch Requests
@@ -1984,9 +1993,12 @@ async  apiDetect(params, callback = null) {
       response.changeCoinSent = 0
       response.changeRequired = false
       for (let k in response.result) {
-        for(let i = 0; i > 25; i++)
-        response.result[k]['an'][i] = md5(k.toString()+response.result[k]['sn'].toString()+coin.pan[i])
-        //delete(response.result[k]['message'])
+        if(!('an' in response.result[k]))
+        response.result[k].an = [];
+        for (let i = 0; i < 25; i++){
+        let newpan = md5(i.toString() + response.result[k]['sn'].toString() + coin.pan[i]);
+        response.result[k].an[i] = newpan;
+      };
       }
 
       this.addBreadCrumbReturn("apiReceive", response)
@@ -4012,7 +4024,7 @@ let status = dView.getUint8(2);
         i++
       }
 for(let j = 0; j < 25; j++){
-  if ('tickets' in rcoins[coins[0].sn])
+  if ('tickets' in resultData.result[coins[0].sn])
   d.setUint32(38 + (3*coins.length) + 16 +(j*4), resultData['result'][coins[0].sn].tickets[i])
   else {
     d.setUint32(38 + (3*coins.length) + 16+(j*4), 0)
