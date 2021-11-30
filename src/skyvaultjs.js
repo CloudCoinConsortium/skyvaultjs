@@ -394,17 +394,96 @@ async  apiDetect(params, callback = null) {
     }
 
     let ts = 0
+    let yr, mm, dy, num_rows
+
     if ('start_ts' in params) {
       ts = params['start_ts']
-      if (!Number.isInteger(ts))
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_TIMESTAMP, "Invalid Timestamp")
-
-      if (ts < 0 || ts > 1919445247) {
+      if (!('month' in ts) || !('year' in ts) || !('day' in ts)) {
         return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_TIMESTAMP, "Invalid Timestamp")
       }
+      yr = ts.year
+      mm = ts.month
+      dy = ts.day
+    }else{
+      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_TIMESTAMP, "Missing Timestamp")
+    }
+    if('rows' in params){
+      num_rows = params['rows']
+    }
+let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+let guid = this._generatePan()
+    let rqdata = []
+    let ab, d;
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(80);
+      d = new DataView(ab); //rqdata.push(ab)
+			d.setUint8(ab.byteLength -1, 0x3e)
+				d.setUint8(ab.byteLength -2, 0x3e) // Trailing chars
+
+        d.setUint8(2, i); //raida id
+        d.setUint8(5, 130); //command show statement
+        d.setUint8(8, 0x01); //coin id
+        d.setUint8(12, 0xAB); // echo
+        d.setUint8(13, 0xAB); // echo
+        d.setUint8(15, 0x01);//udp number
+        //body
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(22 + x, challange[x]);
+        }
+        d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(41 + x, parseInt(coin.an[x].substr(x * 2, 2), 16));
+        }
+        if(num_rows != null)
+        d.setUint8(57, num_rows)//rows
+        else {
+          d.setUint8(57, 1)
+        }
+        d.setUint8(58, yr)//year
+        d.setUint8(59, mm)//month
+        d.setUint8(60, dy)//day
+        switch(i){
+          case 0:
+          case 1:
+          case 2:
+          case 3:
+          case 4:
+          case 5:
+          case 6:
+          case 7:
+          d.setUint8(61, 0x00)
+          break;
+          case 8:
+          case 9:
+          case 10:
+          case 11:
+          case 12:
+          case 13:
+          case 14:
+          case 15:
+          d.setUint8(61, 0x01)
+          break;
+          case 16:
+          case 17:
+          case 18:
+          case 19:
+          case 20:
+          case 21:
+          case 22:
+          case 23:
+          d.setUint8(61, 0x11)
+          break;
+          case 24:
+          d.setUint8(61, 0xFF)
+          break;
+        }
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(62 + x, parseInt(guid.substr(x * 2, 2), 16));
+      }//one time key
+      rqdata.push(ab)
     }
 
-    let rqdata = []
+    /*
     for (let i = 0; i < this._totalServers; i++) {
       rqdata.push({
         'sn' : coin.sn,
@@ -412,19 +491,21 @@ async  apiDetect(params, callback = null) {
         'return' : 'all',
         'start_date': ts
       })
-    }
+    }*/
 
     let rv = {
       'code' : SkyVaultJS.ERR_NO_ERROR,
       'text' : "Records returned",
-      'records' : []
+      'records' : [],
+      'balance': []
+
     }
 
     let e, a, f
     e = a = f = 0
     let statements = {}
     let serverResponses = []
-    let rqs = this._launchRequests("statements/read", rqdata, 'GET', callback)
+    let rqs = this._launchRequests("statements/read", rqdata, callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
         if (serverResponse === "error" || serverResponse == "network") {
@@ -432,54 +513,68 @@ async  apiDetect(params, callback = null) {
           serverResponses.push(null)
           return
         }
+        let dView = new DataView(serverResponse);
 
-        if (serverResponse.status == "success") {
-          if (!('data' in serverResponse)) {
+        if (dView.getUint8(2) == 250 || dView.getUint8(2) == 241) {
+          if (dView.byteLength < 16) {
             e++
             serverResponses.push(null)
             return
           }
+          rv.balance.push(dView.getUint32(12))
 
-          let data = serverResponse.data
+
+          /*
           if (!Array.isArray(data)) {
             e++
             serverResponses.push(null)
             return
           }
-
+*/
           serverResponses.push(serverResponse)
-
+          if(dView.byteLength > 16){
+let offset = 16
+let nonmemo= 31
+let unread = true
+while(unread){
+let data = new DataView(serverResponse, offset)
           let mparts = []
-          for (let r = 0; r < data.length; r++) {
-            let ldata = data[r]
-            if (typeof(ldata) == 'undefined')
-              continue
-
-            if (!('stripe' in ldata) || !('mirror' in ldata) || !('mirror2' in ldata))  {
-              continue
-            }
-
-            if (!('statement_id' in ldata))
-              continue
-
-            let key = ldata.statement_id
+          let key = ""
+          let memosize = 0
+           for (let r = 0; r < 16; r++) {
+             key += data.getUint8(r).toString(16)
+           }
+            //let key = ldata.statement_id
             if (!(key in statements)) {
               statements[key] = {}
-              statements[key]['ldata'] = ldata
+              statements[key]['type'] = data.getUint8(16)
+              statements[key]['amount'] = data.getUint32(17)
+              statements[key]['balance'] = data.getUint32(21)
+              statements[key]['time'] = new Uint8Array(serverResponse,25+offset,6)
               statements[key]['mparts'] = []
             }
 
-            statements[key]['mparts'][rIdx] = {}
-            statements[key]['mparts'][rIdx]['stripe'] = ldata.stripe
-            statements[key]['mparts'][rIdx]['mirror1'] = ldata.mirror
-            statements[key]['mparts'][rIdx]['mirror2'] = ldata.mirror2
-          }
+
+            let x = 0
+            let memobytes = []
+            let endcheck = data.getUint16(nonmemo + x)
+            while(endcheck != 0){
+              memobytes.push(data.getUint8(nonmemo + x))
+              x++
+              endcheck = data.getUint16(nonmemo + x)
+            }
+            statements[key]['mparts'][rIdx] = memobytes
+            offset = offset + nonmemo + x + 2
+            if(offset == serverResponse.byteLength)
+            unread = false
+        }
+      }
 
           a++
           return
         }
 
-        if (serverResponse.status == "fail") {
+        if (dView.getUint8(2) == 251 || dView.getUint8(2) == 242) {
           serverResponses.push(null)
           f++
           return
@@ -495,19 +590,19 @@ async  apiDetect(params, callback = null) {
 
       for (let statement_id in statements) {
         let item = statements[statement_id]
-        let odata = this._getDataFromObjectMemo(item.mparts)
-        if (odata == null) {
-          console.log("Failed to assemble statement " + statement_id + " Not enough valid responses")
-          continue
-        }
+        //let odata = this._getDataFromObjectMemo(item.mparts)
+        //if (odata == null) {
+          //console.log("Failed to assemble statement " + statement_id + " Not enough valid responses")
+          //continue
+        //}
 
-        rv.records.push(odata)
+        rv.records.push(item)//(odata)
       }
-
+/*
       // Fire-and-forget (if neccessary)
       this._syncAdd(serverResponses, "statement_id", "statements/sync/sync_add")
       this._syncDelete(serverResponses, "statement_id", "statements/sync/sync_delete")
-
+*/
 
       return rv
     })
@@ -1756,6 +1851,7 @@ async  apiDetect(params, callback = null) {
     let from = "SkyVaultJS"
 
     let guid = this._generatePan()
+    let times = new Date(Date.now());
     let tags = this._getObjectMemo(guid, memo, amount, from)
     // Assemble input data for each Raida Server
     let ab, d;
@@ -1795,6 +1891,14 @@ async  apiDetect(params, callback = null) {
       for (let x = 0; x < 16; x++) {
         d.setUint8(41 + (amountNotes * 19) + x, parseInt(guid.substr(x * 2, 2), 16));
       }//transaction guid
+
+      d.setUint8(57 + amountNotes * 19, times.getDate())//day
+      d.setUint8(58 + amountNotes * 19, times.getMonth())//month
+      d.setUint8(59 + amountNotes * 19, times.getFullYear())//year
+      d.setUint8(60 + amountNotes * 19, times.getHours())//hour
+      d.setUint8(61 + amountNotes * 19, times.getMinutes())//minute
+      d.setUint8(62 + amountNotes * 19, times.getSeconds())//second
+
       rqdata.push(ab)
     }
 
@@ -1803,6 +1907,7 @@ async  apiDetect(params, callback = null) {
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       if (!('status' in result) || result.status != 'done')
         return result
+
 /*
       let sns = []
       for (let sn in result.result) {
@@ -1876,7 +1981,7 @@ async  apiDetect(params, callback = null) {
         //this._fixTransfer()
       }, 500)
     })
-
+    rv.transaction_id = guid
     return rv
   }
 
@@ -1887,6 +1992,7 @@ async  apiDetect(params, callback = null) {
     let coin = this._getCoinFromParams(params)
     if (coin == null)
       return this._getError("Failed to parse coin from params")
+
 
     let changeMakerId = this.options.changeMakerId
     if ('changeMakerId' in params) {
@@ -1938,13 +2044,19 @@ async  apiDetect(params, callback = null) {
     let nns = new Array(coinsToReceive.length)
     nns.fill(this.options.defaultCoinNn)
     let guid = this._generatePan();
+    let times = new Date(Date.now())
 
     let response
     if (coinsToReceive.length > 0) {
       // Assemble input data for each Raida Server
       let ab, d;
-
+      let seed
+      if('seed' in params){
+        seed = params['seed']
+      }
       for (let i = 0; i < this._totalServers; i++) {
+        if(seed != null)
+        coin.pan[i] = md5(i.toString()+seed)
         ab = new ArrayBuffer(35 + (3 * coinsToReceive.length) + 58 + 50 + 5);
         d = new DataView(ab); //rqdata.push(ab)
 
@@ -1976,6 +2088,12 @@ async  apiDetect(params, callback = null) {
           for (let x = 0; x < 16; x++) {
             d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
           } //transaction guid
+          d.setUint8(89 + coinsToReceive.length * 3, times.getDate())//day
+          d.setUint8(90 + coinsToReceive.length * 3, times.getMonth())//month
+          d.setUint8(91 + coinsToReceive.length * 3, times.getFullYear())//year
+          d.setUint8(92 + coinsToReceive.length * 3, times.getHours())//hour
+          d.setUint8(93 + coinsToReceive.length * 3, times.getMinutes())//minute
+          d.setUint8(94 + coinsToReceive.length * 3, times.getSeconds())//second
 
           d.setUint8(95 + coinsToReceive.length * 3, 1);
 
@@ -1990,6 +2108,7 @@ async  apiDetect(params, callback = null) {
       })
 
       response = await this._getGenericMainPromise(rqs, coins)
+      response.transaction_id = guid
       response.changeCoinSent = 0
       response.changeRequired = false
       for (let k in response.result) {
@@ -2591,6 +2710,7 @@ async  apiDetect(params, callback = null) {
   async _doTransfer(coin, to, tags, coinsToSend, callback, iteration) {
     this.addBreadCrumbEntry("_doTransfer")
 let guid = this._generatePan()
+let times = new Date(Date.now())
 let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
     let rqdata = []
 let ab, d
@@ -2622,6 +2742,12 @@ let ab, d
               for (let x = 0; x < 16; x++) {
                 d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
               } //transaction guid
+              d.setUint8(76 + coinsToSend.length * 3, times.getDate())//day
+              d.setUint8(77 + coinsToSend.length * 3, times.getMonth())//month
+              d.setUint8(78 + coinsToSend.length * 3, times.getFullYear())//year
+              d.setUint8(79 + coinsToSend.length * 3, times.getHours())//hour
+              d.setUint8(80 + coinsToSend.length * 3, times.getMinutes())//minute
+              d.setUint8(81 + coinsToSend.length * 3, times.getSeconds())//second
 
               d.setUint8(83 + coinsToSend.length * 3,3);//ty
 
@@ -2638,7 +2764,7 @@ let ab, d
 
     let response = await this._getGenericBriefMainPromise(rqs, coins)
     this.addBreadCrumbReturn("_doTransfer", response)
-
+    response.transaction_id = guid
     return response
   }
 
@@ -4315,6 +4441,7 @@ for(let j = 0; j < 25; j++){
         counterfeitNotes: 0,
         errorNotes: 0,
         frackedNotes: 0,
+        transaction_id: "",
         result : [],
         details : []
       }

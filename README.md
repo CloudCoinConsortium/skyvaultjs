@@ -1,5 +1,5 @@
 # class Raida
-There are two different files here. One is for Internet Browsers and the other is for Node.js programs. 
+There are two different files here. One is for Internet Browsers and the other is for Node.js programs.
 
 ## Web Browser (in 'lib' folder)
 
@@ -109,8 +109,8 @@ Using html:
 Browser:
 ```js
 let raidaJS = new RaidaJS({ timeout: 20000, debug: false })
-raidaJS.apiEcho().then(response => { 
-	console.log("Available servers: " + response.onlineServers) 
+raidaJS.apiEcho().then(response => {
+	console.log("Available servers: " + response.onlineServers)
 })
 
 let data = [{
@@ -164,16 +164,16 @@ Here are the available config options for making requests. None of them is requi
 ```js
 let options = {
 	// The main domain for the RAIDA
-	domain : "cloudcoin.global", 
+	domain : "cloudcoin.global",
 
 	// Prefix used to construct the final url
-	prefix : "raida", 
+	prefix : "raida",
 
 	// Protocol schema
 	protocol: "https",
 
 	// Read Timeout for HTTP requests in milliseconds
-	timeout: 10000, 
+	timeout: 10000,
 
 	// Default Network Number
 	defaultCoinNn: 1,
@@ -216,7 +216,7 @@ let progress = 0
 raidaJS.apiDetect(data, raidaNumber => {
 	console.log("RAIDA " + raidaNumber + " finished")
 	progress++
-}).then(response => console.log(response))	
+}).then(response => console.log(response))
 ```
 
 ### Set functions
@@ -298,7 +298,7 @@ RaidaJS.ERR_RESPONSE_RECORD_NOT_FOUND = 0x2003
 // Funds
 RaidaJS.ERR_NOT_ENOUGH_CLOUDCOINS = 0x4001
 
-// Network Related 
+// Network Related
 RaidaJS.ERR_DNS_RECORD_NOT_FOUND = 0x5001
 
 // Billpay erros
@@ -327,7 +327,7 @@ Data Returned:
 ```js
 // The call will return an anonymous object that will have three properties:
 {
-	onlineServers: Number,  // The number of servers (0-25) that responded to the echo request. 
+	onlineServers: Number,  // The number of servers (0-25) that responded to the echo request.
 	totalServers: Number,   // This is always 25 and represents the the number of clouds that are in the RAIDA.
 	details: []		// A string array of all the JSON responses from every RAIDA's echo request. This is not usually needed but handy for trouble shooting
 }
@@ -373,7 +373,7 @@ Data Returned:
 			sn: Number,	// Coin serial number
 			denomination: Number,	// Denomination. One of (1, 5, 25, 100, 250)
 
-			// Results from the RAIDA servers 
+			// Results from the RAIDA servers
 			authentic: Number,	// The number of RAIDA servers that think the coin is authentic
 			counterfeit: Number,	// The number of RAIDA servers that think the coin is counterfeit
 			errors: Number,		// The number of RAIDA servers that failed to process the coin
@@ -382,7 +382,7 @@ Data Returned:
 			an: [],
 
 			// Computed Results
-			pownstring: String,	
+			pownstring: String,
 			result: String		// The result. One of the (authentic, counterfeit, fracked, error)
 		},
 
@@ -399,7 +399,7 @@ The function receives a SkyWallet DNS name (e.g. my.skywallet.cc) and resolves i
 
 Input:
 ```js
-// SkyWallet name 
+// SkyWallet name
 string
 ```
 
@@ -481,7 +481,7 @@ raidaJS.apiTransfer(params, raidaNumber => {})
 
 Data Returned:
 
-The same as the one for the apiDetect
+The same as the one for the apiDetect, and a transaction_id is included
 
 #### apiSend
 
@@ -523,12 +523,12 @@ raidaJS.apiSend(params, raidaNumber => {
 
 Data Returned:
 
-The same as the one for the apiDetect
+The same as the one for the apiDetect, and a transaction_id is included
 
 
 #### apiFixFracked
 
-This service can be used as a standalone call but it is reasonable to call it right after the apiDetect call. 
+This service can be used as a standalone call but it is reasonable to call it right after the apiDetect call.
 The method accepts apiDetect response.result as its input value
 
 Input
@@ -541,7 +541,7 @@ Input
 		nn: Number,     // Coin network number
 		sn: Number,     // Coin serial number
 
-		pownstring: String // PownString 
+		pownstring: String // PownString
         },
 
 	coinSN1 : { //  Next Coin
@@ -650,14 +650,16 @@ let params = {
 	// Array of AN numbers
 	an:["44f2b05d74192e31478846f1b7bdd661","55025cf02053edb09b93ef532a37099d","66518632d60f897d84ae62e75a7059a3","77dfb17c08b6dbc2846fbe8938bece1a","880744735d8b124cc0e31a349770d1f4","cd13fcc1a2806a75322d5a9fda0feaa4","f611a8eb968d4d4b0dd82d8a05b2d8eb","23f8f118f4e76e8cc1488514e6bc6881","d31849f975223a06e765d3433d3e6a9b","4502d00825ccae4c3507cfe1749980d1","62925225e48a9b0fe497dcde66de9227","54688f1c40550d113b8f4f513bf6b8d4","9c2b39d22d0b3e4012eb6e962e99b31b","1564dacd34ace94eb4abfe2f378abe87","1b890b7fa38069745c1b7c7729b242c1","23a0120db1384da7fed62a9100c2f56f","07500e20b49fd14ea5880aa279061aea","72c35043e9a0ea06dc3a29e0409af6ed","415110f4d85b09cf6618aa13164f6b87","8bcf9c8ca170528891bb9eb4ffcbaec0","506c76f5422e92297f4daa453a0d195b","8608a6edb997d0abfec8f88782ff61bd","56d153108902aa4bfe5dab55d9298250","763ec57476e3923eb3f4d9309c5651d6","6938b4aafd39bd136141a2ac31fc8141"],
 
-	// Array of PAN numbrs (optional)
+	// Array of PAN numbers (optional) this will set the PG values of receive request. if used the AN of the received coins will be md5(Raida# + SN + PG)
 	pan:["44f2b05d74192e31478846f1b7bdd661","55025cf02053edb09b93ef532a37099d","66518632d60f897d84ae62e75a7059a3","77dfb17c08b6dbc2846fbe8938bece1a","880744735d8b124cc0e31a349770d1f4","cd13fcc1a2806a75322d5a9fda0feaa4","f611a8eb968d4d4b0dd82d8a05b2d8eb","23f8f118f4e76e8cc1488514e6bc6881","d31849f975223a06e765d3433d3e6a9b","4502d00825ccae4c3507cfe1749980d1","62925225e48a9b0fe497dcde66de9227","54688f1c40550d113b8f4f513bf6b8d4","9c2b39d22d0b3e4012eb6e962e99b31b","1564dacd34ace94eb4abfe2f378abe87","1b890b7fa38069745c1b7c7729b242c1","23a0120db1384da7fed62a9100c2f56f","07500e20b49fd14ea5880aa279061aea","72c35043e9a0ea06dc3a29e0409af6ed","415110f4d85b09cf6618aa13164f6b87","8bcf9c8ca170528891bb9eb4ffcbaec0","506c76f5422e92297f4daa453a0d195b","8608a6edb997d0abfec8f88782ff61bd","56d153108902aa4bfe5dab55d9298250","763ec57476e3923eb3f4d9309c5651d6","6938b4aafd39bd136141a2ac31fc8141"],
 
 	// Amount to receive. Optional. If not set all coins will be received
 	amount: 300,
 
 	// ID of the Change Maker. Optional. Default is 2
-	changeMakerId: 2
+	changeMakerId: 2,
+
+	seed: "44f2b05d74192e31478846f1b7bdd661" //Optional, use if not using pan. sets the request's PG values to md5(raida# + seed)
 }
 
 // Example call to the RAIDA
@@ -669,7 +671,7 @@ raidaJS.apiReceive(params, raidaNumber => {})
 
 Data Returned:
 
-The same as the one for the apiDetect
+The same as the one for the apiDetect, and a transaction_id is included
 
 
 #### embedImage
@@ -857,7 +859,7 @@ Data returned
   balances: {},
 
   // Pownstring
-  raidaStatuses: "ppppppppppppppppppppppppp". 
+  raidaStatuses: "ppppppppppppppppppppppppp".
 
   // Array of balances for each RAIDA server
   balancesPerRaida: [],
@@ -958,7 +960,7 @@ Input:
 
 ```js
 params = {
-	// Sky Coin 
+	// Sky Coin
 	account : "7392040",
 
 	// 32-byte hex receipt ID
@@ -1063,14 +1065,14 @@ Data returned
 
 #### apiPay
 
-apiPay is used for transferring CloudCoins from a skywallet to a merchant or to a RAIDA. 
+apiPay is used for transferring CloudCoins from a skywallet to a merchant or to a RAIDA.
 
 Merchant declares the Callback URL in the TXT record of his skywallet
-The record contains an URL that is called by RaidaJS when the transer is done. 
+The record contains an URL that is called by RaidaJS when the transer is done.
 
 If the "to" begins with "cloudcoin" then this is considered a payment to a merchant. All merchants must have a wallet that starts with "cloudcoin" to receive a payment. If the skywallet starts with "raidapay" then this payment is to a RAIDA. All payments to RAIDA must start with the word "raidapay"
 
-RAIDA declares the Callback URL in the TXT record of their skywallet and the URLs of all the RAIDA are infered from that one URL. ATM calls the raidapay.raidamail.com TXT record and finds the webhook."raida0.raida.tech/service/reportpayment.php". The raidajs will then call the web hook page for all 25 raida by replacing the zero in "raida0" with all the RAIDA Numbers 1-24. 
+RAIDA declares the Callback URL in the TXT record of their skywallet and the URLs of all the RAIDA are infered from that one URL. ATM calls the raidapay.raidamail.com TXT record and finds the webhook."raida0.raida.tech/service/reportpayment.php". The raidajs will then call the web hook page for all 25 raida by replacing the zero in "raida0" with all the RAIDA Numbers 1-24.
 
 
 Input:
@@ -1091,7 +1093,7 @@ params = {
 	"216c76f5422e92297f4daa453a0d195b","2208a6edb997d0abfec8f88782ff61bd",
 	"23d153108902aa4bfe5dab55d9298250","243ec57476e3923eb3f4d9309c5651d6",
 	"2538b4aafd39bd136141a2ac31fc8141"]
-  
+
   // Send
   sender_name: "my.skywallet.cc",
 
@@ -1117,7 +1119,7 @@ params = {
 
 Data returned
 
-The same as the one for the apiDetect. A 'guid' (transaction ID) parameter is added to the response. 
+The same as the one for the apiDetect. A 'guid' (transaction ID) parameter is added to the response.
 
 #### apiGetFreeCoin
 
@@ -1246,20 +1248,20 @@ Input:
   // CloudCoin (SN and AN must be passed) of the transactions owner
   "coin" : {
     // Serial Number
-    "sn" : interger,
+    "sn" : integer,
 
     // Array of 25 Authenticity Numbers
     "an" : []
   },
 
   // Filtering on the Backend. Timestamp. If specified, only transactions created after this datetime will be returned
-  "start_ts" : integer,
-
-  // Optional. Sorting field. One of ["amount", "guid", "from", "memo"]
-  "order_by" : string,
-
-  // Optinal. If true the sorting will be in asceding order.
-  "order_asc": true
+  "start_ts" : {
+		"month": integer,
+		"day": integer,
+		"year": integer
+	},
+//Optional, the number of rows to return times 100
+	"rows" : integer
 }
 ```
 
@@ -1273,36 +1275,35 @@ Output:
   // Array of  Records
   "records" : [
 
-  ]
+  ],
+
+	//current balance returned by all raida
+	"balance":[
+
+	]
 }
 ```
 
 Record structure
 ```js
 {
-  // Amount of CloudCoins 
+  // Amount of CloudCoins
   "amount" : integer,
 
-  // 32 chars hexidecimal string. ID of the transaction. 
+	//balance of the transaction
+	"balance": integer,
+
+  // 32 chars hexidecimal string. ID of the transaction.
   "guid" : string,
 
-  // Transaction memo. 
-  "memo" : string,
+  // part of the Transaction memo carried by that raida.
+  "mparts" : bytes,
 
-  // Sender's identity. 
-  "inititator_id" : string,
-
-  // Image URL
-  "initiator_umage_url": string,
-
-  // Description URL
-  "initiator_description_url" : string,
-
-  // Initiator type. One of ['self', 'other_know', 'other_anonymous', 'unknown'].
-  "initiator_type": string,
+  // Transaction type
+  "type": byte,
 
   // Created Timestamp
-  "date" : integer
+  "time" : integer
 }
 ```
 
@@ -1331,7 +1332,7 @@ let c = r.apiShowRecords(trdata, () => {}).then(response => {
 
 #### apiDeleteRecord
 
-The function deletes a statement on the RAIDA. 
+The function deletes a statement on the RAIDA.
 
 Input:
 ```js
@@ -1387,7 +1388,7 @@ apiHealthCheck receives an ID coins and executes three calls to the RAIDA. 'show
 Input:
 ```js
 {
-  // ID CloudCoin (SN and AN must be passed) 
+  // ID CloudCoin (SN and AN must be passed)
   "coin" : {
     // Serial Number
     "sn" : interger,
@@ -1438,10 +1439,10 @@ SNS Item array
 // "yes" - coin is present on the RAIDA server
 // "no" - coin is NOT present on the RAIDA server
 [
-"yes", "yes", "no", "yes", "yes", 
-"yes", "yes", "no", "yes", "yes", 
-"yes", "yes", "no", "yes", "yes", 
-"yes", "yes", "no", "yes", "yes", 
+"yes", "yes", "no", "yes", "yes",
+"yes", "yes", "no", "yes", "yes",
+"yes", "yes", "no", "yes", "yes",
+"yes", "yes", "no", "yes", "yes",
 "yes", "yes", "no", "yes", "yes"
 ]
 ```
@@ -1487,7 +1488,7 @@ Two protocol versions are supported:
 Input:
 ```js
 {
-  // ID CloudCoin (SN and AN must be passed) 
+  // ID CloudCoin (SN and AN must be passed)
   "coin" : {
     // Serial Number
     "sn" : interger,
@@ -1568,7 +1569,7 @@ Function reads an NFT token from the RAIDA and assotiated with a CloudCoin
 Input:
 ```js
 {
-  // ID CloudCoin (SN and AN must be passed) 
+  // ID CloudCoin (SN and AN must be passed)
   "coin" : {
     // Serial Number
     "sn" : interger,
@@ -1621,12 +1622,12 @@ let c = r.apiNFTRead(data, () => {}).then(response => {
 
 #### apiNFTDelete
 
-Deletes an NFT token from the RAIDA 
+Deletes an NFT token from the RAIDA
 
 Input:
 ```js
 {
-  // ID CloudCoin (SN and AN must be passed) 
+  // ID CloudCoin (SN and AN must be passed)
   "coin" : {
     // Serial Number
     "sn" : interger,
@@ -1701,7 +1702,7 @@ if the ID is passed and the corresponding object exists in the LocalStorage then
 Input:
 ```js
 {
-  // ID CloudCoin (SN and AN must be passed) 
+  // ID CloudCoin (SN and AN must be passed)
   "coin" : {
     // Serial Number
     "sn" : interger,
@@ -1722,7 +1723,7 @@ Output:
 ```js
 // CloudCoin
 {
-  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful. Can be RaidaJS.ERR_BILLPAY_SENT_PARTIALLY 
+  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful. Can be RaidaJS.ERR_BILLPAY_SENT_PARTIALLY
   "code" : integer,
 
   // Amount sent,
@@ -1797,7 +1798,7 @@ Output:
 ```js
 // CloudCoin
 {
-  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful. 
+  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful.
   "code" : integer,
 
   // Total Amount,
@@ -1855,7 +1856,7 @@ Input:
 Output:
 ```js
 {
-  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful. 
+  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful.
   "code" : integer,
 
   // Base64-encode PNG Card Data
@@ -1885,12 +1886,12 @@ let c = r.apiGenerateCard(data, () => {}).then(response => {
 
 #### apiRecoverIDCoin
 
-The function recovers a lost ID coin. The user must pay 1 CloudCoin to restore the coin. 
+The function recovers a lost ID coin. The user must pay 1 CloudCoin to restore the coin.
 
 Input:
 ```js
 {
-  // Payment Coin. Must be 1 CC 
+  // Payment Coin. Must be 1 CC
   "paycoin" : {
     // Serial Number
     "sn" : interger,
@@ -1910,7 +1911,7 @@ Input:
 Output:
 ```js
 {
-  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful. 
+  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful.
   "code" : integer,
 }
 ```
@@ -1958,7 +1959,7 @@ Input:
 Output:
 ```js
 {
-  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful. 
+  // Always RaidaJS.ERR_NO_ERROR (0x0) if the response is successful.
   "code" : integer,
 
   // Base64-encode PNG Card Data
@@ -1994,5 +1995,3 @@ let c = r.apiRestoreCardcoverIDCoin(data, () => {}).then(response => {
   }
 }
 ```
-
-
