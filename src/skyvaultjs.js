@@ -326,26 +326,49 @@ async  apiDetect(params, callback = null) {
     if (!('coin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing")
 
-    if (!('guid' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_GUID, "GUID in missing")
+      let coin = params['coin']
+      if (!this._validateCoin(coin)) {
+        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
+      }
 
-    let guid = params['guid']
-    if (!this._validateGuid(guid))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_GUID, "Invalid GUID")
 
-    let coin = params['coin']
-    if (!this._validateCoin(coin)) {
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-    }
+          let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
-    let rqdata = []
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        'sn' : coin.sn,
-        'an' : coin.an[i],
-        'statement_id': params.guid
-      })
-    }
+
+          let rqdata = [];
+          let ab, d;
+
+          for (let i = 0; i < this._totalServers; i++) {
+            ab = new ArrayBuffer(24+35);
+            d = new DataView(ab); //rqdata.push(ab)
+
+            d.setUint8(ab.byteLength - 1, 0x3e);
+            d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+
+            d.setUint8(2, i); //raida id
+
+            d.setUint8(5, 131); //command delete statement
+
+            d.setUint8(8, 0x01); //coin id
+
+            d.setUint8(12, 0xAB); // echo
+
+            d.setUint8(13, 0xAB); // echo
+
+            d.setUint8(15, 0x01); //udp number
+            //body
+
+            for (let x = 0; x < 16; x++) {
+              d.setUint8(22 + x, challange[x]);
+            }
+
+            d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+
+            for (let x = 0; x < 16; x++) {
+              d.setUint8(41 + x, parseInt(coin.an[x].substr(x * 2, 2), 16));
+            }
+            rqdata.push(ab)
+          }
 
     let rv = {
       'code' : SkyVaultJS.ERR_NO_ERROR,
@@ -354,18 +377,19 @@ async  apiDetect(params, callback = null) {
 
     let a, e, f
     a = f = e = 0
-    let rqs = this._launchRequests("statements/delete", rqdata, 'GET', callback)
+    let rqs = this._launchRequests("statements/delete", rqdata, callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
         if (serverResponse === "error" || serverResponse == "network") {
           e++
           return
         }
-        if (serverResponse.status == "success") {
+          let dView = new DataView(serverResponse);
+        if (dView.getUint8(2) == 250) {
           a++
           return
         }
-        if (serverResponse.status == "fail") {
+        else {
           f++
           return
         }
@@ -439,6 +463,8 @@ let guid = this._generatePan()
         else {
           d.setUint8(57, 1)
         }
+        if(yr > 2000)
+          yr = yr - 2000
         d.setUint8(58, yr)//year
         d.setUint8(59, mm)//month
         d.setUint8(60, dy)//day
@@ -501,8 +527,8 @@ let guid = this._generatePan()
 
     }
 
-    let e, a, f
-    e = a = f = 0
+    let e, a, f, n
+    e = a = f = n = 0
     let statements = {}
     let serverResponses = []
     let rqs = this._launchRequests("statements/read", rqdata, callback)
@@ -551,20 +577,23 @@ let data = new DataView(serverResponse, offset)
               statements[key]['amount'] = data.getUint32(17)
               statements[key]['balance'] = data.getUint32(21)
               statements[key]['time'] = new Uint8Array(serverResponse,25+offset,6)
+              statements[key]['guid'] = key
               statements[key]['mparts'] = []
             }
 
 
-            let x = 0
-            let memobytes = []
-            let endcheck = data.getUint16(nonmemo + x)
-            while(endcheck != 0){
-              memobytes.push(data.getUint8(nonmemo + x))
-              x++
-              endcheck = data.getUint16(nonmemo + x)
+            let x = 0;
+            let memobytes = [];
+            //let endcheck = data.getUint16(nonmemo + x);
+
+            while (x < 50){//endcheck != 0) {
+              memobytes.push(data.getUint8(nonmemo + x));
+              x++;
+              //endcheck = data.getUint16(nonmemo + x);
             }
-            statements[key]['mparts'][rIdx] = memobytes
-            offset = offset + nonmemo + x + 2
+
+            statements[key]['mparts'][rIdx] = memobytes;
+            offset = offset + nonmemo + x;//+2;
             if(offset == serverResponse.byteLength)
             unread = false
         }
@@ -580,11 +609,17 @@ let data = new DataView(serverResponse, offset)
           return
         }
 
+        if(dView.getUint8(2) == 120){
+          n++
+        }
+
         serverResponses.push(null)
         e++
       })
 
       let result = this._gradeCoin(a, f, e)
+      if(n > 20)
+        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_RECORD_NOT_FOUND, "No Statements found");
       if (!this._validResult(result))
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to read statements. Too many error responses from RAIDA")
 
@@ -1892,9 +1927,9 @@ let data = new DataView(serverResponse, offset)
         d.setUint8(41 + (amountNotes * 19) + x, parseInt(guid.substr(x * 2, 2), 16));
       }//transaction guid
 
-      d.setUint8(57 + amountNotes * 19, times.getDate())//day
+      d.setUint8(57 + amountNotes * 19, times.getFullYear() - 2000)//year
       d.setUint8(58 + amountNotes * 19, times.getMonth())//month
-      d.setUint8(59 + amountNotes * 19, times.getFullYear())//year
+      d.setUint8(59 + amountNotes * 19, times.getDate())//day
       d.setUint8(60 + amountNotes * 19, times.getHours())//hour
       d.setUint8(61 + amountNotes * 19, times.getMinutes())//minute
       d.setUint8(62 + amountNotes * 19, times.getSeconds())//second
@@ -1905,6 +1940,7 @@ let data = new DataView(serverResponse, offset)
     // Launch Requests
     let rqs = this._launchRequests("send", rqdata, callback)
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
+      result.transaction_id = guid
       if (!('status' in result) || result.status != 'done')
         return result
 
@@ -1981,7 +2017,7 @@ let data = new DataView(serverResponse, offset)
         //this._fixTransfer()
       }, 500)
     })
-    rv.transaction_id = guid
+
     return rv
   }
 
@@ -2058,7 +2094,7 @@ let data = new DataView(serverResponse, offset)
         if(seed != null)
         coin.pan[i] = md5(i.toString()+seed)
         ab = new ArrayBuffer(35 + (3 * coinsToReceive.length) + 58 + 50 + 5);
-        d = new DataView(ab); //rqdata.push(ab)
+        d = new DataView(ab); //
 
         d.setUint8(ab.byteLength - 1, 0x3e);
         d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
@@ -2088,15 +2124,15 @@ let data = new DataView(serverResponse, offset)
           for (let x = 0; x < 16; x++) {
             d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
           } //transaction guid
-          d.setUint8(89 + coinsToReceive.length * 3, times.getDate())//day
+          d.setUint8(89 + coinsToReceive.length * 3, times.getFullYear() - 2000)//year
           d.setUint8(90 + coinsToReceive.length * 3, times.getMonth())//month
-          d.setUint8(91 + coinsToReceive.length * 3, times.getFullYear())//year
+          d.setUint8(91 + coinsToReceive.length * 3, times.getDate())//day
           d.setUint8(92 + coinsToReceive.length * 3, times.getHours())//hour
           d.setUint8(93 + coinsToReceive.length * 3, times.getMinutes())//minute
           d.setUint8(94 + coinsToReceive.length * 3, times.getSeconds())//second
 
           d.setUint8(95 + coinsToReceive.length * 3, 1);
-
+          rqdata.push(ab)
       } // Launch Requests
 
       // Launch Requests
@@ -2742,9 +2778,9 @@ let ab, d
               for (let x = 0; x < 16; x++) {
                 d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
               } //transaction guid
-              d.setUint8(76 + coinsToSend.length * 3, times.getDate())//day
+              d.setUint8(76 + coinsToSend.length * 3, times.getFullYear() - 2000)//year
               d.setUint8(77 + coinsToSend.length * 3, times.getMonth())//month
-              d.setUint8(78 + coinsToSend.length * 3, times.getFullYear())//year
+              d.setUint8(78 + coinsToSend.length * 3, times.getDate())//day
               d.setUint8(79 + coinsToSend.length * 3, times.getHours())//hour
               d.setUint8(80 + coinsToSend.length * 3, times.getMinutes())//minute
               d.setUint8(81 + coinsToSend.length * 3, times.getSeconds())//second
