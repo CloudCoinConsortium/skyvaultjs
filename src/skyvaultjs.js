@@ -273,6 +273,7 @@ d.setUint8(22, 0x3e)
       code : SkyVaultJS.ERR_NO_ERROR,
       onlineServers : 0,
       totalServers: this._totalServers,
+      serverStatuses: [],
       details : []
     }
 
@@ -282,8 +283,12 @@ d.setUint8(22, 0x3e)
         if (serverResponse === "error" || serverResponse === "network")
           return
         let dView = new DataView(serverResponse)
-        if (dView.getUint8(2) === 250){//serverResponse.status === "ready") {
+        if (dView.getUint8(2) === 250){
+          rv.serverStatuses[dView.getUint8(0)] = 1
           rv['onlineServers']++;
+        }
+        else{
+          rv.serverStatuses[dView.getUint8(0)] = 0
         }
       })
 
@@ -296,7 +301,7 @@ d.setUint8(22, 0x3e)
   }
 
   // Detect
-async  apiDetect(params, callback = null) {
+async  apiPown(params, callback = null) {
     this.addBreadCrumbEntry("apiDetect", params)
 
     if (!Array.isArray(params)) {
@@ -320,6 +325,31 @@ async  apiDetect(params, callback = null) {
 
     return rv
   }
+
+  async  apiDetect(params, callback = null) {
+      this.addBreadCrumbEntry("apiDetect", params)
+
+      if (!Array.isArray(params)) {
+        console.error("Invalid input data")
+        return null
+      }
+
+      let rqdata = this._formRequestData(params, false, 1)
+
+
+
+      // Launch Requests
+      let rqs = this._launchRequests("multi_detect", rqdata, callback)
+
+      let rv = this._getGenericMainPromise(rqs, params).then(response => {
+        this.addBreadCrumbReturn("apiDetect", response)
+
+        return response
+      })
+
+
+      return rv
+    }
 
   // Deletes a statement from the RAIDA
   async apiDeleteRecord(params, callback = null) {
@@ -1375,11 +1405,9 @@ let data = new DataView(serverResponse, offset)
     if (!('password' in params))
       return this._getError("Password is not defined")
 
-    if (!('email' in params))
-      return this._getError("Email is not defined")
 
     let password = params['password']
-    let email = params['email']
+    //let email = params['email']
     if (password.length < this.options.minPasswordLength)
       return this._getError("Password length must be at least 16 characters")
 
@@ -1401,7 +1429,7 @@ let data = new DataView(serverResponse, offset)
       const p = '' + CryptoJS.MD5(seed);
 
       const p0 = p.substring(0, 24);
-      let component = '' + sn + '' + i + email;
+      let component = '' + sn + '' + i;
       component = '' + CryptoJS.MD5(component);
       const p1 = component.substring(0, 8);
       pans[i] = p0 + p1;
@@ -1470,6 +1498,23 @@ let data = new DataView(serverResponse, offset)
     this.addBreadCrumbReturn("apiGetCCByUsernameAndPassword", rvFinal)
 
     return rvFinal
+
+  }
+
+  async apiLoginByUsernameAndPassword(params){
+    let cred = await this.apiGetCCByUsernameAndPassword(params)
+
+    let rv =
+      {
+        'status' : 'unknown',
+        'cc' : cred.cc
+      }
+      let detect = await this.apiDetect([cred.cc])
+      rv.details = detect
+      if(detect.details.authenticNotes > 0 || detect.details.frackedNotes > 0)
+        rv.status = 'success'
+      else
+        rv.status = 'failure'
 
   }
 
@@ -1558,6 +1603,14 @@ let data = new DataView(serverResponse, offset)
     }
 
     return rv
+  }
+
+  async apiFindAddress(sn) {
+    let so = sn >> 16;
+    let to = sn >> 8 & 0xff;
+    let lo = sn & 0xff;
+    let ip = "1." + so + '.' + to + '.' + lo;
+    
   }
 
   // Restore Card
@@ -2719,6 +2772,75 @@ let data = new DataView(serverResponse, offset)
 
   }
 
+  async _syncOwnersAddDelete(coin, sns, servers, mode){
+//mode = 0 for add, 2 for delete
+    if (!this._validateCoin(coin)) {
+      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
+}
+      if (!Array.isArray(sns)) {
+        return this._getError("Invalid input data. Serial Numbers must be an array")
+      }
+
+      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+      let rqdata = [];
+      let ab, d;
+      for (let i = 0; i < this._totalServers; i++) {
+          ab = new ArrayBuffer(35 + 24 + 3* sns.length );
+          d = new DataView(ab); //rqdata.push(ab)
+           // Trailing chars
+          d.setUint8(2, i); //raida id
+          d.setUint8(5, 150 + mode);//command sync add or delete(if mode = 2)
+          d.setUint8(8, 0x01); //coin id
+          d.setUint8(12, 0xAB); // echo
+          d.setUint8(13, 0xAB); // echo
+          d.setUint8(15, 0x01); //udp number
+                //body
+          for (let x = 0; x < 16; x++) {
+            d.setUint8(22 + x, challange[x]);
+          }
+          d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+          for (let x = 0; x < 16; x++) {
+            d.setUint8(41 + x, parseInt(coin.an[x].substr(x * 2, 2), 16));
+          }
+          for(let y = 0; y <sns.length; y++){
+            d.setUint32(57 + y *3,sns[y] << 8)
+          }
+          d.setUint8(ab.byteLength - 1, 0x3e);
+          d.setUint8(ab.byteLength - 2, 0x3e);
+          rqdata.push(ab)
+        }
+        let pm = this._launchRequests("sync/fix_transfer", rqdata,  null, servers)
+
+
+            let rv = {
+              status: 'done',
+              code: SkyVaultJS.ERR_NO_ERROR,
+              res_status_code: 0,
+              details: []
+            };
+            let mainPromise = pm.then(response => {
+              this._parseMainPromise(response, 0, rv, serverResponse => {
+                if (serverResponse === "error" || serverResponse === "network"){
+                  rv.status = 'error'
+                  rv.code = SkyVaultJS.ERR_HAS_ERROR
+                  return;
+                }
+                let dView = new DataView(serverResponse);
+
+                rv.res_status_code = dView.getUint8(2)
+                if (dView.getUint8(2) != 250) {
+                  rv.code = SkyVaultJS.ERR_HAS_ERROR
+                }
+              });
+
+              this.addBreadCrumbReturn("apiFixTransfer", rv);
+              return rv;
+            });
+            return mainPromise;
+
+  }
+
+
   // Merges responses from RAIDA servers
   _mergeResponse(response, addon) {
     if (Object.keys(response).length == 0)
@@ -2930,26 +3052,131 @@ let ab, d
     return rqs
   }
 
-  async apiFixTransferSync(coinsPerRaida, callback) {
+  async apiFixTransferSync(coin, callback) {
     this.addBreadCrumbEntry("apiFixTransferSync", coinsPerRaida)
     return this.apiFixTransferGeneric(coinsPerRaida, true, callback)
   }
 
-  async apiFixTransfer(coinsPerRaida, callback) {
+  async apiFixTransfer(coin, callback) {
     this.addBreadCrumbEntry("apiFixTransfer", coinsPerRaida)
     return this.apiFixTransferGeneric(coinsPerRaida, false, callback)
   }
 
-  async apiFixTransferGeneric(coinsPerRaida, sync, callback) {
+  async apiFixTransferGeneric(coin, sync, callback) {
     this.addBreadCrumbEntry("apiFixTransferGeneric", coinsPerRaida)
 
-    if (typeof(coinsPerRaida) != "object")
+    if (typeof(coin) != "object")
       return this._getError("Failed to validate input args")
 
+    let is_add = 2//1 = add, 0= delete, 2 = not sure
+    let bal = await this.apiShowBalance(coin, callback)
+    let lower = []
+    let greater = []
+    for (let k = 0; k < this._totalServers; k++) {
+      if(bal.balancesPerRaida[k] < bal.balance && bal.balancesPerRaida[k] != null)
+        lower.push[k]
+      else if (bal.balancesPerRaida[k] = bal.balance) {
+        greater.push[k]
+      }
+    }
+    if (lower.length <= 12)
+      is_add = 1
+    else if (greater.length <= 12)
+      is_add = 0
+
+let sns = []
+    if(is_add = 1){
+      let pivot = greater[0]
+      let missing1s, missing5s, missing25s, missing100s, missing250s = 0
+for (let l in lower){
+missing1s = bal.denominations[pivot][1] - bal.denominations[l][1]
+missing5s = bal.denominations[pivot][5] - bal.denominations[l][5]
+missing25s = bal.denominations[pivot][25] - bal.denominations[l][25]
+missing100s = bal.denominations[pivot][100] - bal.denominations[l][100]
+missing250s = bal.denominations[pivot][250] - bal.denominations[l][250]
+if(missing1s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 1, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'no')
+      sns.push(sn)
+}
+if(missing100s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 100, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'no')
+      sns.push(sn)
+}
+if(missing5s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 5, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'no')
+      sns.push(sn)
+}
+if(missing25s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 25, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'no')
+      sns.push(sn)
+}
+if(missing250s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 250, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'no')
+      sns.push(sn)
+}
+
+this._syncOwnersAddDelete(coin, sns, [l], 0)
+}
+
+
+
+    }else if(is_add = 0){
+let pivot = lower[0]
+for (let g in greater){
+missing1s = bal.denominations[g][1] - bal.denominations[pivot][1]
+missing5s = bal.denominations[g][5] - bal.denominations[pivot][5]
+missing25s = bal.denominations[g][25] - bal.denominations[pivot][25]
+missing100s = bal.denominations[g][100] - bal.denominations[pivot][100]
+missing250s = bal.denominations[g][250] - bal.denominations[pivot][250]
+if(missing1s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 1, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'yes')
+      sns.push(sn)
+}
+if(missing100s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 100, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'yes')
+      sns.push(sn)
+}
+if(missing5s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 5, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'yes')
+      sns.push(sn)
+}
+if(missing25s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 25, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'yes')
+      sns.push(sn)
+}
+if(missing250s > 0){
+  let showcoin = this._getShowCoinsByDenomination(coin, 250, ()=>{})
+  for(let sn in showcoin.coinsPerRaida)
+    if(showcoin.coinsPerRaida[sn][l] = 'yes')
+      sns.push(sn)
+}
+this._syncOwnersAddDelete(coin, sns, [g], 2)
+}
+
+    }
+
+/*
     let rqdata = []
     for (let k in coinsPerRaida) {
       let rs = coinsPerRaida[k]
-
       let yes = 0
       let no = 0
       let yraidas = []
@@ -2960,19 +3187,16 @@ let ab, d
           yraidas.push(i)
           continue
         }
-
         if (rs[i] == "no") {
           no++
           nraidas.push(i)
           continue
         }
       }
-
       if (yes + no < this._totalServers - this.options.maxFailedRaidas) {
         // No fix. a lot of network errors
         continue
       }
-
       if (yes != 0 && no != 0) {
         let raidas = []
         if (yes == no) {
@@ -2980,13 +3204,11 @@ let ab, d
           console.log("Coin " + k + " has equal votes from all raida servers")
           continue
         }
-
         if (yes > no) {
           raidas = nraidas
         } else {
           raidas = yraidas
         }
-
         // Will fix coin on raida servers
         for (let r = 0; r < raidas.length; r++) {
           let rIdx = raidas[r]
@@ -2994,59 +3216,119 @@ let ab, d
             rqdata[rIdx] = {
               sn : []
             }
-
             if (sync) {
               rqdata[rIdx]['sync'] = "true"
             }
-
           }
-
           // Will not add more than
           if (rqdata[rIdx].sn.length >= this.options.maxCoinsPerIteraiton)
             continue
-
           rqdata[rIdx].sn.push(k)
         }
       }
     }
-
     let servers = Object.keys(rqdata)
     let rv = {
       "status":"done"
     }
     let rqs = this._launchRequests("sync/fix_transfer", rqdata, 'GET', callback, servers).then(response => {
-      /*
-      Ignoring response. Fire & Forget
-      */
       return rv
     })
+    return rqs
+    */
+  }
+   _getRandom(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1) + min); //The maximum is inclusive and the minimum is inclusive
+  }
+  // Get Free Coin
+  async apiGetFreeCoin(sn = null, callback = null) {
+    if(sn == null){
+      sn = _getRandom(26000, 100000);
+    }
+    //let url = this.options.freeCoinURL
+    let ab, d;
+    let rqdata = [];
+let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(24 + 19);
+      d = new DataView(ab);
+       // Trailing chars
+
+      d.setUint8(2, i); //raida id
+
+      d.setUint8(5, 30); //command free id
+
+      d.setUint8(8, 0x00); //coin id
+
+      d.setUint8(12, 0xAB); // echo
+
+      d.setUint8(13, 0xAB); // echo
+
+      d.setUint8(15, 0x01); //udp number;//udp number
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(22 + x, challange[x]);
+      }
+      d.setUint32(38, sn << 8);
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e);
+      rqdata.push(ab);
+    }
+    //let response
+    let rv = {
+      status : 'done',
+      code: SkyVaultJS.ERR_NO_ERROR,
+      cc:{
+        sn: sn,
+        an: []
+      }
+    };
+    let e, a, n = 0;
+    let rqs = await this._launchRequests("free_id", rqdata, callback).then(response => {
+      this._parseMainPromise(response, 0, rv, (response, rIdx) => {
+        if (response == "network" || response == "error") {
+          //rv = this._getError("Failed to get free coin");
+          n++;
+          return;
+        }
+
+        if (response.byteLength < 12) {
+          //rv = this._getError("Failed to parse respense from FreeCoin Server");
+
+          return;
+        }
+
+        let dView = new DataView(response);
+        let status = dView.getUint8(2);
+
+        if (status == 40) {
+          //rv = this._getError("SN already in use");
+          a++;
+          return;
+        }
+
+        if (status != 250) {
+          //rv = this._getError("error code:" + status);
+          e++;
+          return;
+        }
+
+        let data = new DataView(response, 12);
+        let an = "";
+        for (let r = 0; r < 16; r++) {
+          if(data.getUint8(r) < 16)
+            an += "0";
+          an += data.getUint8(r).toString(16);
+        } //let key = ldata.statement_id
+
+        rv.cc.an[rIdx] = an
+      });
+
+      return rv;
+    });
 
     return rqs
-  }
-
-  // Get Free Coin
-  async apiGetFreeCoin(hwId) {
-    let url = this.options.freeCoinURL
-    let response
-    try {
-      response = await this._axInstance.get(url + "?hwid=" + hwId)
-    } catch (e) {
-      return this._getError("Failed to get response from the FreeCoin Server")
-    }
-    if (response.status != 200)
-      return this._getError("Failed to get free coin")
-
-    let data = response.data
-    if (!('status' in data))
-      return this._getError("Failed to parse respense from FreeCoin Server")
-
-    if (data.status != "success")
-      return this._getError(data.message)
-
-    let ccStack = data.message
-    let cc = ccStack.cloudcoin
-
-    return cc[0]
   }
 
 
@@ -3194,7 +3476,8 @@ let ab, d
       balancesPerRaida: [],
       raidaStatuses: [],
       triedToFix: false,
-      fixedCoin: false
+      fixedCoin: false,
+      denominations: []
     };
 
     for (let i = 0; i < this._totalServers; i++) {
@@ -3211,6 +3494,7 @@ let ab, d
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
           rv.balancesPerRaida[rIdx] = null;
+          rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3218,6 +3502,7 @@ let ab, d
         if (response == "error") {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
+          rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3225,6 +3510,7 @@ let ab, d
         if (response.byteLength < 12) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
+          rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3233,6 +3519,7 @@ let status = dView.getUint8(2);
         if (status == 251) {
           rv.raidaStatuses[rIdx] = "f";
           rv.balancesPerRaida[rIdx] = null;
+          rv.denominations[rIdx] = null;
           rf++;
           return;
         }
@@ -3240,6 +3527,7 @@ let status = dView.getUint8(2);
         if (status != 250) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
+          rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3247,6 +3535,25 @@ let status = dView.getUint8(2);
         rv.raidaStatuses[rIdx] = "p";
         let b = dView.getUint32(12);
         rv.balancesPerRaida[rIdx] = b;
+        let dsplit = new DataView(response, 16)
+        let denom = new ArrayBuffer(dsplit.byteLength + 1)
+        let denomView = new DataView(denom)
+        for(let x = 0; x < denom.byteLength -1; x++)
+          denomView.setUint8(x,dsplit.getUint8(x))
+        let den_ob = {
+          1: 0,
+          5: 0,
+          25: 0,
+          100: 0,
+          250: 0
+        }
+        den_ob[250] = denomView.getUint32(0) >> 8
+        den_ob[100] = denomView.getUint32(3) >> 8
+        den_ob[25] = denomView.getUint32(6) >> 8
+        den_ob[5] = denomView.getUint32(9) >> 8
+        den_ob[1] = denomView.getUint32(12) >> 8
+
+        rv.denominations[rIdx] = den_ob;
 
         if (!(b in balances)) {
           balances[b] = 0;
@@ -4160,6 +4467,124 @@ let status = dView.getUint8(2);
     return rqs
   }
 
+
+    async _getCoinsByDenomination(coin, denomination, callback) {
+      let rqdata = []
+
+      // Assemble input data for each Raida Server
+      let ab, d;
+  		for (let i = 0; i < this._totalServers; i++) {
+  		ab = new ArrayBuffer(36 + 20 + 5);
+  		d = new DataView(ab);
+  		d.setUint8(ab.byteLength -1, 0x3e);
+  			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
+  			d.setUint8(2, i) //raida id
+  			d.setUint8(5, 114);//show register
+  			d.setUint8(8, 0x01);//coin id
+  			d.setUint8(12, 0xAB);// echo
+  			d.setUint8(13, 0xAB);// echo
+  			d.setUint8(15, 0x01)//udp number;//udp number
+        d.setUint8(ab.byteLength -3, 250)//biggest returned denomination
+  			d.setUint32(38, coin.sn<<8)
+  			for (let x = 0; x < 16; x++) {
+  				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
+  			}
+        d.setUint8(57, denomination)
+        d.setUint8(58, 0)
+  			rqdata.push(ab)
+  		}
+      let rv = {
+        code: SkyVaultJS.ERR_NO_ERROR,
+        coins: {},
+        coinsPerRaida: {}
+      }
+
+      let skipRaidas = []
+      let a, f, e
+      a = f = e = 0
+      let rqs = this._launchRequests("show", rqdata, callback).then(response => {
+        this._parseMainPromise(response, 0, rv, (response, rIdx) => {
+          if (response == "network" || response == "error") {
+            skipRaidas.push(rIdx)
+            e++
+            return
+          }
+
+          if ((response.byteLength < 12)) {
+            skipRaidas.push(rIdx)
+            e++
+            return
+          }
+          let dView = new DataView(response);
+          let status = dView.getUint8(2);
+          if (status == 251) {
+            skipRaidas.push(rIdx)
+            f++
+            return
+          }
+
+          if (status != 250) {
+            skipRaidas.push(rIdx)
+            e++
+            return
+          }
+
+          a++
+          let coinsplit = new DataView(response, 12)
+          let amount = coinsplit.byteLength/3
+          let coins = new ArrayBuffer(coinsplit.byteLength + 1)
+          let coinsView = new DataView(coins)
+          for(let x = 0; x < coins.byteLength -1; x++)
+            coinsView.setUint8(x,coinsplit.getUint8(x))
+          for (let i = 0; i < amount; i++) {
+            let key = coinsView.getUint32(i * 3) >> 8
+            if (!(key in rv.coins)) {
+              rv.coins[key] = {
+                passed: 0
+              }
+              rv.coinsPerRaida[key] = []
+              for (let j = 0; j < this._totalServers; j++)
+                rv.coinsPerRaida[key][j] = "no"
+            }
+
+            rv.coinsPerRaida[key][rIdx] = "yes"
+            rv.coins[key].passed++
+          }
+        })
+
+        // Fail only if counterfeit. Other errors are fine
+        let result = this._gradeCoin(a, f, e)
+        if (result == this.__counterfeitResult)
+          return this._getErrorCode(SkyVaultJS.ERR_COUNTERFEIT_COIN, "Counterfeit coins")
+        //if (!this._validResult(result))
+        //  return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to get coins. Too many error responses from RAIDA")
+
+        let nrv = { code: SkyVaultJS.ERR_NO_ERROR, coins: {} }
+        nrv.coinsPerRaida = rv.coinsPerRaida
+        for (let f = 0; f < skipRaidas.length; f++) {
+          let frIdx = skipRaidas[f]
+          for (let sn in rv.coinsPerRaida) {
+            rv.coinsPerRaida[sn][frIdx] = "unknown"
+          }
+        }
+        for (let sn in rv.coins) {
+          let a = rv.coins[sn].passed
+          let f = this._totalServers - a
+          let result = this._gradeCoin(a, f, 0)
+          if (this._validResult(result)) {
+            nrv.coins[sn] = {
+              denomination: this.getDenomination(sn)
+            }
+          }
+        }
+
+
+        return nrv
+      })
+
+      return rqs
+    }
+
   // Doing internal fix
   async _realFix(round, raidaIdx, coins, callback = null) {
     let rqdata, triad, rqs, resultData
@@ -4275,7 +4700,12 @@ for(let j = 0; j < 25; j++){
         d.setUint8(2, i) //raida id
         //d.setUint8(3, 0x00) //shard id
         d.setUint8(5, command)//command
-        d.setUint8(8, 0x01)//coin id
+        d.setUint8(5, command); //command
+        if(coin.sn >= 26000 && coin.sn <= 100000){
+        d.setUint8(8, 0x00); //coin id
+        }else{
+        d.setUint8(8, 0x01); //coin id
+        }
         d.setUint8(12, 0xAB)// echo
         d.setUint8(13, 0xAB)// echo
         d.setUint8(15, 0x01)//udp number//udp number

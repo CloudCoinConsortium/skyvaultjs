@@ -1123,13 +1123,12 @@ The same as the one for the apiDetect. A 'guid' (transaction ID) parameter is ad
 
 #### apiGetFreeCoin
 
-Function queries the FreeCoin Server and downloads a coin from there. It accepts a Uniq Hardware ID which is 32 character hexidecimal string
-The generation of HardwareID is up to the caller. It can be an MD5 sum of the IP address or MAC address
+Function queries the FreeCoin Server and downloads a coin from there.
 
 
 Input:
 ```js
-hwId - 32 hex string
+sn - integer
 ```
 
 Data Returned:
@@ -1145,7 +1144,7 @@ Data Returned:
 ```
 
 ```js
-let c = r.apiGetFreeCoin("102f5037fe6474019fe947b4977bb2a5").then(response => {
+let c = r.apiGetFreeCoin("27000").then(response => {
   if ('status' in response && response.status == 'error')  {
     console.error("Error")
     return
