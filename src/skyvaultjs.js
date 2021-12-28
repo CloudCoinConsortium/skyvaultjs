@@ -1077,7 +1077,7 @@ let data = new DataView(serverResponse, offset)
               ms = dView.getUint8(12 + i / 8);
             }
             let bitpos = i - 8 * (i / 8);
-            mixed = ms >> bitpos & 1;
+            mixed = ms >>> bitpos & 1;
           }
           if(status == 250 || status == 241 || status == 243 && mixed == 1)
           rv.tickets.push(dView.getUint32(3))
@@ -1481,7 +1481,16 @@ let data = new DataView(serverResponse, offset)
     let pans = []
     for (let i = 0; i < this._totalServers; i++) {
       let seed = "" + i + sn + rand + pin
-      pans[i] = "" + CryptoJS.MD5(seed)
+
+      const p0 = p.substring(0, 24);
+      let component = '' + sn + '' + i;
+      component = '' + CryptoJS.MD5(component);
+      const p1 = component.substring(0, 8);
+      pans[i] = p0 + p1;
+
+
+
+      //pans[i] = "" + CryptoJS.MD5(seed)
     }
 
     let cc = {
@@ -1606,11 +1615,11 @@ let data = new DataView(serverResponse, offset)
   }
 
   async apiFindAddress(sn) {
-    let so = sn >> 16;
-    let to = sn >> 8 & 0xff;
+    let so = sn >>> 16;
+    let to = sn >>> 8 & 0xff;
     let lo = sn & 0xff;
     let ip = "1." + so + '.' + to + '.' + lo;
-    
+
   }
 
   // Restore Card
@@ -2969,7 +2978,7 @@ let ab, d
           let d25 = [];
           let d100 = [];
           for (let i = 0; i < coins.byteLength / 3; i++) {
-            key = coins.getUint32(i * 3) >> 8;
+            key = coins.getUint32(i * 3) >>> 8;
             switch (this.getDenomination(key)) {
               case 100:
                 d100.push(key)
@@ -3243,16 +3252,22 @@ this._syncOwnersAddDelete(coin, sns, [g], 2)
     return Math.floor(Math.random() * (max - min + 1) + min); //The maximum is inclusive and the minimum is inclusive
   }
   // Get Free Coin
-  async apiGetFreeCoin(sn = null, callback = null) {
+  async apiGetFreeCoin(sn = null, an = null, callback = null) {
     if(sn == null){
       sn = _getRandom(26000, 100000);
     }
+    if (an != null && !Array.isArray(an)) {
+      return this._getError("Invalid input data. Authenticity Numbers must be an array")
+    }
+    let bufferlength = 24+19;
+    if(an != null)
+    bufferlength += 16;
     //let url = this.options.freeCoinURL
     let ab, d;
     let rqdata = [];
 let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
     for (let i = 0; i < this._totalServers; i++) {
-      ab = new ArrayBuffer(24 + 19);
+      ab = new ArrayBuffer(bufferlength);
       d = new DataView(ab);
        // Trailing chars
 
@@ -3271,6 +3286,12 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         d.setUint8(22 + x, challange[x]);
       }
       d.setUint32(38, sn << 8);
+      if(an != null){
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+        }
+      }
+
       d.setUint8(ab.byteLength - 1, 0x3e);
       d.setUint8(ab.byteLength - 2, 0x3e);
       rqdata.push(ab);
@@ -3516,7 +3537,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         }
 let dView = new DataView(response);
 let status = dView.getUint8(2);
-        if (status == 251) {
+        if (status == 251 || response.byteLength < 13) {
           rv.raidaStatuses[rIdx] = "f";
           rv.balancesPerRaida[rIdx] = null;
           rv.denominations[rIdx] = null;
@@ -3547,11 +3568,11 @@ let status = dView.getUint8(2);
           100: 0,
           250: 0
         }
-        den_ob[250] = denomView.getUint32(0) >> 8
-        den_ob[100] = denomView.getUint32(3) >> 8
-        den_ob[25] = denomView.getUint32(6) >> 8
-        den_ob[5] = denomView.getUint32(9) >> 8
-        den_ob[1] = denomView.getUint32(12) >> 8
+        den_ob[250] = denomView.getUint32(0) >>> 8
+        den_ob[100] = denomView.getUint32(3) >>> 8
+        den_ob[25] = denomView.getUint32(6) >>> 8
+        den_ob[5] = denomView.getUint32(9) >>> 8
+        den_ob[1] = denomView.getUint32(12) >>> 8
 
         rv.denominations[rIdx] = den_ob;
 
@@ -4368,7 +4389,7 @@ let status = dView.getUint8(2);
 			d.setUint8(12, 0xAB);// echo
 			d.setUint8(13, 0xAB);// echo
 			d.setUint8(15, 0x01)//udp number;//udp number
-      d.setUint8(ab.byteLength -3, 250)//biggest returned denomination
+      d.setUint8(ab.byteLength -3, 251)//biggest returned denomination
 			d.setUint32(38, coin.sn<<8)
 			for (let x = 0; x < 16; x++) {
 				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
@@ -4419,7 +4440,7 @@ let status = dView.getUint8(2);
         for(let x = 0; x < coins.byteLength -1; x++)
           coinsView.setUint8(x,coinsplit.getUint8(x))
         for (let i = 0; i < amount; i++) {
-          let key = coinsView.getUint32(i * 3) >> 8
+          let key = coinsView.getUint32(i * 3) >>> 8
           if (!(key in rv.coins)) {
             rv.coins[key] = {
               passed: 0
@@ -4537,7 +4558,7 @@ let status = dView.getUint8(2);
           for(let x = 0; x < coins.byteLength -1; x++)
             coinsView.setUint8(x,coinsplit.getUint8(x))
           for (let i = 0; i < amount; i++) {
-            let key = coinsView.getUint32(i * 3) >> 8
+            let key = coinsView.getUint32(i * 3) >>> 8
             if (!(key in rv.coins)) {
               rv.coins[key] = {
                 passed: 0
@@ -4967,14 +4988,14 @@ for(let j = 0; j < 25; j++){
           let ms
           if(status == 243){
             if(sr.byteLength >= 20)
-            ms = sr.getUint8(20 +(i/8))
+            ms = sr.getUint8(Math.floor(20 +(i/8)))
             else if(sr.byteLength >= 16){
-            ms = sr.getUint8(16 +(i/8))
+            ms = sr.getUint8(Math.floor(16 +(i/8)))
           }else {
-              ms = sr.getUint8(12 +(i/8))
+              ms = sr.getUint8(Math.floor(12 +(i/8)))
             }
-            let bitpos = i - (8*(i/8))
-            mixed = (ms >> bitpos) & 1
+            let bitpos = i - (8*Math.floor(i/8))
+            mixed = (ms >>> bitpos) & 1
           }
 
           if (status == 250 || status == 241 ||(status == 243 && mixed == 1)) {//sr.status == 'pass') {

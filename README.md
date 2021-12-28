@@ -1128,7 +1128,8 @@ Function queries the FreeCoin Server and downloads a coin from there.
 
 Input:
 ```js
-sn - integer
+sn - integer //optional, if not specified will be random
+an - array //optional, if not specified then will be provided by RAIDA
 ```
 
 Data Returned:
