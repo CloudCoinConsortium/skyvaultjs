@@ -2291,7 +2291,7 @@ let data = new DataView(serverResponse, offset)
       d.setUint32(57, extraSn<<8)
       d.setUint32(60, this.options.changeMakerId<<8)
       for (let j = 0; j < vsns.length; j++) {
-        d.setUint32(63 + j * 3, vsvn[j] << 8);
+        d.setUint32(63 + j * 3, vsns[j] << 8);
       }
       d.setUint8(ab.byteLength -1, 0x3e);
   			d.setUint8(ab.byteLength -2, 0x3e);
@@ -3254,7 +3254,7 @@ this._syncOwnersAddDelete(coin, sns, [g], 2)
   // Get Free Coin
   async apiGetFreeCoin(sn = null, an = null, callback = null) {
     if(sn == null){
-      sn = _getRandom(26000, 100000);
+      sn = this._getRandom(26000, 100000);
     }
     if (an != null && !Array.isArray(an)) {
       return this._getError("Invalid input data. Authenticity Numbers must be an array")
@@ -3273,7 +3273,9 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
       d.setUint8(2, i); //raida id
 
-      d.setUint8(5, 30); //command free id
+      if(an != null) d.setUint8(5, 31);
+
+      else d.setUint8(5, 30); //command free id
 
       d.setUint8(8, 0x00); //coin id
 
@@ -3288,7 +3290,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
       d.setUint32(38, sn << 8);
       if(an != null){
         for (let x = 0; x < 16; x++) {
-          d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+          d.setUint8(41 + x, parseInt(an[i].substr(x * 2, 2), 16));
         }
       }
 
@@ -3336,14 +3338,18 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         }
 
         let data = new DataView(response, 12);
-        let an = "";
+        let newan = "";
+
+        if(an == null){
         for (let r = 0; r < 16; r++) {
-          if(data.getUint8(r) < 16)
-            an += "0";
-          an += data.getUint8(r).toString(16);
+          if (data.getUint8(r) < 16) newan += "0";
+          newan += data.getUint8(r).toString(16);
         } //let key = ldata.statement_id
 
-        rv.cc.an[rIdx] = an
+        rv.cc.an[rIdx] = newan;
+      }else{
+        rv.cc.an = an;
+      }
       });
 
       return rv;
@@ -5290,7 +5296,7 @@ for(let j = 0; j < 25; j++){
     this._raidaServers[9] = this.options.wsprotocol + "://66.172.11.25:8888";
     this._raidaServers[10] = this.options.wsprotocol + "://194.29.186.69:8888";
     this._raidaServers[11] = this.options.wsprotocol + "://168.235.69.182:8888";
-    this._raidaServers[12] = this.options.wsprotocol + "://5.230.67.199:8888";
+    this._raidaServers[12] = this.options.wsprotocol + "://185.118.164.19:8888";
     this._raidaServers[13] = this.options.wsprotocol + "://167.88.15.117:8888";
     this._raidaServers[14] = this.options.wsprotocol + "://23.29.115.137:8888";
     this._raidaServers[15] = this.options.wsprotocol + "://66.29.143.85:8888";
