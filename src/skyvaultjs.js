@@ -1527,6 +1527,47 @@ let data = new DataView(serverResponse, offset)
 
   }
 
+ readCCFile(file){//pass in an arraybuffer
+  this.addBreadCrumbEntry("apiReadCCFile")
+  if (!(file instanceof ArrayBuffer)) {
+    return this._getError("file is not passed in as ArrayBuffer")
+  }
+  let d = new DataView(file)
+let offset = 32
+let eof = false
+let ccs = []
+while(!eof){
+
+  let ans = []
+  let an = ""
+  let sn = d.getUint32(offset) >>>8
+  for(let x = 0; x < 25; x++){
+    an = ""
+    for(let y = 0; y < 16; y++){
+      let pos = offset + y + (x * 16) + 16
+      if (d.getUint8(pos) < 16) an += "0";
+      an += d.getUint8(pos).toString(16);
+    }
+    ans.push(an)
+  }
+  let cc = {sn:sn,an:ans}
+  ccs.push(cc)
+  offset += 416
+  if(offset>= file.byteLength)
+  eof = true
+}
+
+
+
+  let rv = {
+    'status' : 'done',
+    'code' : 0,
+    'cc': ccs
+  }
+
+  return rv
+}
+
   // extract stack from PNG
   async extractStack(params) {
     this.addBreadCrumbEntry("apiExtractStack", params)

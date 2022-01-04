@@ -742,6 +742,36 @@ Data returned
 }
 ```
 
+#### readCCFile
+
+Extracts stack data from an ArrayBuffer obtained from a .bin file
+
+Input:
+
+```js
+file = ArrayBuffer
+
+r.readCCFile(file).then(response => {
+	console.log(response)
+})
+
+
+```
+
+Data returned
+
+```js
+{
+	// Status of the request
+	status: String,			// 'done' or 'error'
+	code: Number,
+	// CloudCoin Stack
+	cc: {
+		...
+	}
+
+}
+```
 
 #### apiGetticket
 
