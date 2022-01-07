@@ -199,6 +199,7 @@ class SkyVaultJS {
 
   // Get denomination
   getDenomination(sn) {
+    /*
     if (sn < 1)
       return 0
 
@@ -216,8 +217,8 @@ class SkyVaultJS {
 
     if (sn < 16777217)
       return 250
-
-    return 0
+*/
+    return 1
   }
 
   // RAIDA to query for SkyWallet creation
@@ -1701,12 +1702,12 @@ while(!eof){
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_CARD, "Invalid Card")
 
     let fiveYearsFromNow = new Date();
-    fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
-    let month = fiveYearsFromNow.getMonth() + 1;
+    fiveYearsFromNow.setFullYear(fiveYearsFromNow.getUTCFullYear() + 5);
+    let month = fiveYearsFromNow.getUTCMonth() + 1;
     if (month < 10)
       month = "0" + month
 
-    let year = fiveYearsFromNow.getFullYear().toString().substr(-2);
+    let year = fiveYearsFromNow.getUTCFullYear().toString().substr(-2);
     let ed = month + '/' + year
 
     let data = {
@@ -2030,12 +2031,12 @@ while(!eof){
         d.setUint8(41 + (amountNotes * 19) + x, parseInt(guid.substr(x * 2, 2), 16));
       }//transaction guid
 
-      d.setUint8(57 + amountNotes * 19, times.getFullYear() - 2000)//year
-      d.setUint8(58 + amountNotes * 19, times.getMonth())//month
-      d.setUint8(59 + amountNotes * 19, times.getDate())//day
-      d.setUint8(60 + amountNotes * 19, times.getHours())//hour
-      d.setUint8(61 + amountNotes * 19, times.getMinutes())//minute
-      d.setUint8(62 + amountNotes * 19, times.getSeconds())//second
+      d.setUint8(57 + amountNotes * 19, times.getUTCFullYear() - 2000)//year
+      d.setUint8(58 + amountNotes * 19, times.getUTCMonth())//month
+      d.setUint8(59 + amountNotes * 19, times.getUTCDate())//day
+      d.setUint8(60 + amountNotes * 19, times.getUTCHours())//hour
+      d.setUint8(61 + amountNotes * 19, times.getUTCMinutes())//minute
+      d.setUint8(62 + amountNotes * 19, times.getUTCSeconds())//second
 
       rqdata.push(ab)
     }
@@ -2132,12 +2133,12 @@ while(!eof){
     if (coin == null)
       return this._getError("Failed to parse coin from params")
 
-
+/*
     let changeMakerId = this.options.changeMakerId
     if ('changeMakerId' in params) {
       changeMakerId = params['changeMakerId']
     }
-
+*/
     let gcRqs = await this._getCoins(coin, callback)
     if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
@@ -2154,6 +2155,7 @@ while(!eof){
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
     let coinsToReceive = rvalues.coins
+    /*
     let changeCoin = rvalues.extra
 
     let changeRequired
@@ -2177,6 +2179,7 @@ while(!eof){
     } else {
       changeRequired = false
     }
+    */
 
     let rqdata = []
     let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
@@ -2227,12 +2230,12 @@ while(!eof){
           for (let x = 0; x < 16; x++) {
             d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
           } //transaction guid
-          d.setUint8(89 + coinsToReceive.length * 3, times.getFullYear() - 2000)//year
-          d.setUint8(90 + coinsToReceive.length * 3, times.getMonth())//month
-          d.setUint8(91 + coinsToReceive.length * 3, times.getDate())//day
-          d.setUint8(92 + coinsToReceive.length * 3, times.getHours())//hour
-          d.setUint8(93 + coinsToReceive.length * 3, times.getMinutes())//minute
-          d.setUint8(94 + coinsToReceive.length * 3, times.getSeconds())//second
+          d.setUint8(89 + coinsToReceive.length * 3, times.getUTCFullYear() - 2000)//year
+          d.setUint8(90 + coinsToReceive.length * 3, times.getUTCMonth())//month
+          d.setUint8(91 + coinsToReceive.length * 3, times.getUTCDate())//day
+          d.setUint8(92 + coinsToReceive.length * 3, times.getUTCHours())//hour
+          d.setUint8(93 + coinsToReceive.length * 3, times.getUTCMinutes())//minute
+          d.setUint8(94 + coinsToReceive.length * 3, times.getUTCSeconds())//second
 
           d.setUint8(95 + coinsToReceive.length * 3, 1);
           rqdata.push(ab)
@@ -2249,7 +2252,7 @@ while(!eof){
       response = await this._getGenericMainPromise(rqs, coins)
       response.transaction_id = guid
       response.changeCoinSent = 0
-      response.changeRequired = false
+      //response.changeRequired = false
       for (let k in response.result) {
         if(!('an' in response.result[k]))
         response.result[k].an = [];
@@ -2261,8 +2264,8 @@ while(!eof){
 
       this.addBreadCrumbReturn("apiReceive", response)
       return response
-    } else if (changeCoin === 0) {
-      return this._getError("No coins to receive")
+    //} else if (changeCoin === 0) {
+    //  return this._getError("No coins to receive")
     } else {
       response = {
         totalNotes: 0, authenticNotes: 0, counterfeitNotes: 0, errorNotes: 0, frackedNotes: 0, result: {}
@@ -2689,13 +2692,13 @@ while(!eof){
     if (to == null) {
       return this._getError("Failed to resolve DNS name: " + params.to)
     }
-
+/*
 
     let changeMakerId = this.options.changeMakerId
     if ('changeMakerId' in params) {
       changeMakerId = params['changeMakerId']
     }
-
+*/
     if (!('amount' in params)) {
       return this._getError("Invalid params. Amount is not defined")
     }
@@ -2730,11 +2733,11 @@ while(!eof){
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
     let coinsToSend = rvalues.coins
-    let changeCoin = rvalues.extra
+    //let changeCoin = rvalues.extra
     if (coinsToSend.length > this.options.maxCoins) {
       return  this._getError("You can't transfer more than " + this.options.maxCoins + " notes at a time")
     }
-
+/*
     let changeRequired
     if (changeCoin !== 0) {
       let csns = await this.apiBreakInBank(rvalues.extra, coin, callback)
@@ -2757,6 +2760,7 @@ while(!eof){
     } else {
       changeRequired = false
     }
+    */
     let batch = this.options.maxCoinsPerIteraiton
 
     let iterations = Math.floor(coinsToSend.length / batch)
@@ -2782,7 +2786,7 @@ while(!eof){
     }
 
     // Assemble input data for each Raida Server
-    response.changeCoinSent = changeRequired
+    //response.changeCoinSent = changeRequired
     response.code = SkyVaultJS.ERR_NO_ERROR
 
     let pm = new Promise((resolve, reject) => {
@@ -2950,12 +2954,12 @@ let ab, d
               for (let x = 0; x < 16; x++) {
                 d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
               } //transaction guid
-              d.setUint8(76 + coinsToSend.length * 3, times.getFullYear() - 2000)//year
-              d.setUint8(77 + coinsToSend.length * 3, times.getMonth())//month
-              d.setUint8(78 + coinsToSend.length * 3, times.getDate())//day
-              d.setUint8(79 + coinsToSend.length * 3, times.getHours())//hour
-              d.setUint8(80 + coinsToSend.length * 3, times.getMinutes())//minute
-              d.setUint8(81 + coinsToSend.length * 3, times.getSeconds())//second
+              d.setUint8(76 + coinsToSend.length * 3, times.getUTCFullYear() - 2000)//year
+              d.setUint8(77 + coinsToSend.length * 3, times.getUTCMonth())//month
+              d.setUint8(78 + coinsToSend.length * 3, times.getUTCDate())//day
+              d.setUint8(79 + coinsToSend.length * 3, times.getUTCHours())//hour
+              d.setUint8(80 + coinsToSend.length * 3, times.getUTCMinutes())//minute
+              d.setUint8(81 + coinsToSend.length * 3, times.getUTCSeconds())//second
 
               d.setUint8(83 + coinsToSend.length * 3,3);//ty
 
@@ -3400,7 +3404,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   }
 
 
-  async apiShowCoins(coin, callback) {
+  async apiShowCoins(coin, callback=null) {
     this.addBreadCrumbEntry("apiShowCoins", coin)
 
     if (!this._validateCoin(coin)) {
@@ -3545,7 +3549,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
       raidaStatuses: [],
       triedToFix: false,
       fixedCoin: false,
-      denominations: []
+      //denominations: []
     };
 
     for (let i = 0; i < this._totalServers; i++) {
@@ -3562,7 +3566,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
           rv.balancesPerRaida[rIdx] = null;
-          rv.denominations[rIdx] = null;
+          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3570,7 +3574,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         if (response == "error") {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          rv.denominations[rIdx] = null;
+          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3578,7 +3582,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         if (response.byteLength < 12) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          rv.denominations[rIdx] = null;
+          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3587,7 +3591,7 @@ let status = dView.getUint8(2);
         if (status == 251 || response.byteLength < 13) {
           rv.raidaStatuses[rIdx] = "f";
           rv.balancesPerRaida[rIdx] = null;
-          rv.denominations[rIdx] = null;
+          //rv.denominations[rIdx] = null;
           rf++;
           return;
         }
@@ -3595,7 +3599,7 @@ let status = dView.getUint8(2);
         if (status != 250) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          rv.denominations[rIdx] = null;
+          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3603,6 +3607,7 @@ let status = dView.getUint8(2);
         rv.raidaStatuses[rIdx] = "p";
         let b = dView.getUint32(12);
         rv.balancesPerRaida[rIdx] = b;
+        /*
         let dsplit = new DataView(response, 16)
         let denom = new ArrayBuffer(dsplit.byteLength + 1)
         let denomView = new DataView(denom)
@@ -3622,7 +3627,7 @@ let status = dView.getUint8(2);
         den_ob[1] = denomView.getUint32(12) >>> 8
 
         rv.denominations[rIdx] = den_ob;
-
+*/
         if (!(b in balances)) {
           balances[b] = 0;
         }
@@ -4419,7 +4424,7 @@ let status = dView.getUint8(2);
 
     return rqs
   }
-
+/*
   async _getCoins(coin, callback) {
     let rqdata = []
 
@@ -4534,9 +4539,9 @@ let status = dView.getUint8(2);
 
     return rqs
   }
+*/
 
-
-    async _getCoinsByDenomination(coin, denomination, callback) {
+    async _getCoins(coin, callback=null){//ByDenomination(coin, denomination, callback) {
       let rqdata = []
 
       // Assemble input data for each Raida Server
@@ -4557,7 +4562,7 @@ let status = dView.getUint8(2);
   			for (let x = 0; x < 16; x++) {
   				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
   			}
-        d.setUint8(57, denomination)
+        //d.setUint8(57, denomination)
         d.setUint8(58, 0)
   			rqdata.push(ab)
   		}
