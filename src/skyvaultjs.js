@@ -51,6 +51,7 @@ class SkyVaultJS {
     , ...options}
 
     this._raidaServers = []
+    this._activeServers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
     this._totalServers = 25
     this._generateServers()
     this._initAxios()
@@ -277,7 +278,7 @@ d.setUint8(22, 0x3e)
       serverStatuses: [],
       details : []
     }
-
+this._activeServers = []
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
 
@@ -287,6 +288,7 @@ d.setUint8(22, 0x3e)
         if (dView.getUint8(2) === 250){
           rv.serverStatuses[dView.getUint8(0)] = 1
           rv['onlineServers']++;
+          this._activeServers.push(dView.getUint8(0))
         }
         else{
           rv.serverStatuses[dView.getUint8(0)] = 0
@@ -315,7 +317,7 @@ async  apiPown(params, callback = null) {
 
 
     // Launch Requests
-    let rqs = this._launchRequests("multi_detect", rqdata, callback)
+    let rqs = this._launchRequests("multi_detect", rqdata, callback, this._activeServers)
 
     let rv = this._getGenericMainPromise(rqs, params).then(response => {
       this.addBreadCrumbReturn("apiDetect", response)
@@ -340,7 +342,7 @@ async  apiPown(params, callback = null) {
 
 
       // Launch Requests
-      let rqs = this._launchRequests("multi_detect", rqdata, callback)
+      let rqs = this._launchRequests("multi_detect", rqdata, callback, this._activeServers)
 
       let rv = this._getGenericMainPromise(rqs, params).then(response => {
         this.addBreadCrumbReturn("apiDetect", response)
@@ -562,7 +564,7 @@ let guid = this._generatePan()
     e = a = f = n = 0
     let statements = {}
     let serverResponses = []
-    let rqs = this._launchRequests("statements/read", rqdata, callback)
+    let rqs = this._launchRequests("statements/read", rqdata, callback, this._activeServers)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
         if (serverResponse === "error" || serverResponse == "network") {
@@ -651,9 +653,11 @@ let data = new DataView(serverResponse, offset)
       let result = this._gradeCoin(a, f, e)
       if(n > 20)
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_RECORD_NOT_FOUND, "No Statements found");
-      if (!this._validResult(result))
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to read statements. Too many error responses from RAIDA")
-
+        if (!this._validResult(result)){
+          let er = this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to read statements. Too many error responses from RAIDA");
+          this._addDetails(er, serverResponses);
+          return er;
+        }
       for (let statement_id in statements) {
         let item = statements[statement_id]
         //let odata = this._getDataFromObjectMemo(item.mparts)
@@ -1055,7 +1059,7 @@ let data = new DataView(serverResponse, offset)
     }*/
     let rqdata = this._formRequestData([coin], false, 11)
 
-    let rqs = this._launchRequests("get_ticket", rqdata, callback)
+    let rqs = this._launchRequests("get_ticket", rqdata, callback, this._activeServers)
     let rv = {
       status : 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -2042,7 +2046,7 @@ while(!eof){
     }
 
     // Launch Requests
-    let rqs = this._launchRequests("send", rqdata, callback)
+    let rqs = this._launchRequests("send", rqdata, callback, this._activeServers)
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       result.transaction_id = guid
       if (!('status' in result) || result.status != 'done')
@@ -2242,7 +2246,7 @@ while(!eof){
       } // Launch Requests
 
       // Launch Requests
-      let rqs = this._launchRequests("receive", rqdata, callback)
+      let rqs = this._launchRequests("receive", rqdata, callback, this._activeServers)
 
       let coins = new Array(coinsToReceive.length)
       coinsToReceive.forEach((value, idx) => {
@@ -2342,7 +2346,7 @@ while(!eof){
 			rqdata.push(ab)
 		}
 
-    let response = await this._launchRequests("break_in_bank", rqdata, callback)
+    let response = await this._launchRequests("break_in_bank", rqdata, callback, this._activeServers)
     let p = 0
     let rv = await this._parseMainPromise(response, 0, {}, response => {
       if (response == "error" || response == "network")
@@ -2967,7 +2971,7 @@ let ab, d
           }
 
     // Launch Requests
-    let rqs = this._launchRequests("transfer", rqdata, callback, null, iteration)
+    let rqs = this._launchRequests("transfer", rqdata, callback, this._activeServers, iteration)
 
     let coins = new Array(coinsToSend.length)
     coinsToSend.forEach((value, idx) => {
@@ -3004,7 +3008,7 @@ let ab, d
   		}
 
     let nrv = { d1 : {}, d5 : {}, d25 : {}, d100 : {}}
-    let rqs = this._launchRequests("show_change", rqdata, callback).then(response => {
+    let rqs = this._launchRequests("show_change", rqdata, callback, this._activeServers).then(response => {
       this._parseMainPromise(response, 0, nrv, response => {
         if (response === "error" || response === "network")
           return
@@ -3353,7 +3357,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
       }
     };
     let e, a, n = 0;
-    let rqs = await this._launchRequests("free_id", rqdata, callback).then(response => {
+    let rqs = await this._launchRequests("free_id", rqdata, callback, this._activeServers).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error") {
           //rv = this._getError("Failed to get free coin");
@@ -3561,7 +3565,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
     let ra, re, rf;
     ra = re = rf = 0;
 
-    let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
+    let rqs = this._launchRequests("show_transfer_balance", rqdata, callback, this._activeServers).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
@@ -4575,7 +4579,7 @@ let status = dView.getUint8(2);
       let skipRaidas = []
       let a, f, e
       a = f = e = 0
-      let rqs = this._launchRequests("show", rqdata, callback).then(response => {
+      let rqs = this._launchRequests("show", rqdata, callback, this._activeServers).then(response => {
         this._parseMainPromise(response, 0, rv, (response, rIdx) => {
           if (response == "network" || response == "error") {
             skipRaidas.push(rIdx)
@@ -4665,7 +4669,7 @@ let status = dView.getUint8(2);
       //triad = this._trustedTriads[raidaIdx][corner]
 
       rqdata = this._formRequestData(coins, false, 11)
-      rqs = this._launchRequests("multi_get_ticket", rqdata,  callback)
+      rqs = this._launchRequests("multi_get_ticket", rqdata,  callback, this._activeServers)
       resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
         if (a > 12)
           return this.__authenticResult
@@ -5278,7 +5282,7 @@ for(let j = 0; j < 25; j++){
         rparams = params
 
 }
-  pm = this._wsConnect(rq, rparams, i, options.timeout);
+  pm = this._wsConnect(rq, rparams, raidaIdx, options.timeout);
 
 /*
       if (method == 'GET') {
@@ -5330,6 +5334,34 @@ for(let j = 0; j < 25; j++){
       this._raidaServers[i] = this.options.protocol + "://" + this.options.prefix
         + i + "." +this.options.domain
     */
+    if(this.options.wsprotocol == "wss"){
+      this._raidaServers[0] = this.options.wsprotocol + "://ebc0-99a2-92e-10420.skyvault.cc:8888";
+      this._raidaServers[1] = this.options.wsprotocol + "://ebc2-4555a2-92e-10422.skyvault.cc:8888";
+      this._raidaServers[2] = this.options.wsprotocol + "://ebc4-9aes2-92e-10424.skyvault.cc:8888";
+      this._raidaServers[3] = this.options.wsprotocol + "://ebc6-13a2-92e-10426.skyvault.cc:8888";
+      this._raidaServers[4] = this.options.wsprotocol + "://ebc8-11a2-92e-10428.skyvault.cc:8888";
+      this._raidaServers[5] = this.options.wsprotocol + "://ebc10-56a2-92e-104210.skyvault.cc:8888";
+      this._raidaServers[6] = this.options.wsprotocol + "://ebc12-88a2-92e-10412.skyvault.cc:8888";
+      this._raidaServers[7] = this.options.wsprotocol + "://ebc14-90a2-92e-10414.skyvault.cc:8888";
+      this._raidaServers[8] = this.options.wsprotocol + "://ebc16-66a2-92e-10416.skyvault.cc:8888";
+      this._raidaServers[9] = this.options.wsprotocol + "://ebc18-231a2-92e-10418.skyvault.cc:8888";
+      this._raidaServers[10] = this.options.wsprotocol + "://ebc20-13489-92e-10420.skyvault.cc:8888";
+      this._raidaServers[11] = this.options.wsprotocol + "://ebc22-kka2-92e-10422.skyvault.cc:8888";
+      this._raidaServers[12] = this.options.wsprotocol + "://ebc24-mnna2-92e-10444.skyvault.cc:8888";
+      this._raidaServers[13] = this.options.wsprotocol + "://ebc26-uuia2-92e-10426.skyvault.cc:8888";
+      this._raidaServers[14] = this.options.wsprotocol + "://ebc28-eera2-92e-10428.skyvault.cc:8888";
+      this._raidaServers[15] = this.options.wsprotocol + "://ebc30-zxda2-92e-10430.skyvault.cc:8888";
+      this._raidaServers[16] = this.options.wsprotocol + "://ebc32-wera2-92e-10432.skyvault.cc:8888";
+      this._raidaServers[17] = this.options.wsprotocol + "://ebc34-34oa2-92e-10434.skyvault.cc:8888";
+      this._raidaServers[18] = this.options.wsprotocol + "://ebc36-mhha2-92e-10436.skyvault.cc:8888";
+      this._raidaServers[19] = this.options.wsprotocol + "://ebc38-qqra2-92e-10438.skyvault.cc:8888";
+      this._raidaServers[20] = this.options.wsprotocol + "://ebc40-bhta2-92e-10440.skyvault.cc:8888";
+      this._raidaServers[21] = this.options.wsprotocol + "://ebc42-nkla2-92e-10442.skyvault.cc:8888";
+      this._raidaServers[22] = this.options.wsprotocol + "://cbe88-3i0a2-63e-21233.skyvault.cc:8888";
+      this._raidaServers[23] = this.options.wsprotocol + "://7cbdbe-2arbf-e29-64401.skyvault.cc:8888";
+      this._raidaServers[24] = this.options.wsprotocol + "://ebc48-adea2-92e-10448.skyvault.cc:8888";
+    }
+    else{
     this._raidaServers[0] = this.options.wsprotocol + "://87.120.8.249:8888";
     this._raidaServers[1] = this.options.wsprotocol + "://23.106.122.6:8888";
     this._raidaServers[2] = this.options.wsprotocol + "://172.105.176.86:8888";
@@ -5355,6 +5387,7 @@ for(let j = 0; j < 25; j++){
     this._raidaServers[22] = this.options.wsprotocol + "://180.235.135.143:8888";
     this._raidaServers[23] = this.options.wsprotocol + "://80.233.134.148:8888";
     this._raidaServers[24] = this.options.wsprotocol + "://147.182.249.132:8888";
+  }
   }
 
   // Check if the coin is valid
