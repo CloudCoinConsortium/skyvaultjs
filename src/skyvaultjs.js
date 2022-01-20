@@ -400,7 +400,7 @@ async  apiPown(params, callback = null) {
             d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
 
             for (let x = 0; x < 16; x++) {
-              d.setUint8(41 + x, parseInt(coin.an[x].substr(x * 2, 2), 16));
+              d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
             }
             rqdata.push(ab)
           }
@@ -491,7 +491,7 @@ let guid = this._generatePan()
         }
         d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
         for (let x = 0; x < 16; x++) {
-          d.setUint8(41 + x, parseInt(coin.an[x].substr(x * 2, 2), 16));
+          d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
         }
         if(num_rows != null)
         d.setUint8(57, num_rows)//rows
@@ -2861,7 +2861,7 @@ while(!eof){
           }
           d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
           for (let x = 0; x < 16; x++) {
-            d.setUint8(41 + x, parseInt(coin.an[x].substr(x * 2, 2), 16));
+            d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
           }
           for(let y = 0; y <sns.length; y++){
             d.setUint32(57 + y *3,sns[y] << 8)
@@ -4649,7 +4649,7 @@ let status = dView.getUint8(2);
         }
         for (let sn in rv.coins) {
           let a = rv.coins[sn].passed
-          let f = this._totalServers - a
+          let f = this._activeServers.length - a
           let result = this._gradeCoin(a, f, 0)
           if (this._validResult(result)) {
             nrv.coins[sn] = {
@@ -5106,7 +5106,7 @@ for(let j = 0; j < 25; j++){
   }
 
   _gradeCoin(a, f, e) {
-    if (a + f + e != this._activeServers.length)
+    if (a + f + e < this._activeServers.length)
       return this.__errorResult
 
 
