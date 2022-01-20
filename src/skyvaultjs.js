@@ -3662,7 +3662,7 @@ let status = dView.getUint8(2);
       }
 
       let a = max;
-      let f = this._totalServers - a;
+      let f = this._activeServers.length - a;
 
       let result = this._gradeCoin(a, f, 0);
 
@@ -5217,42 +5217,43 @@ for(let j = 0; j < 25; j++){
     }
   }
 
-  _wsConnect(url, data, i, timeout = 10000) {
-    let reject = true;
-    if(this._activeServers.includes(i))
-      reject = false;
-    return new Promise(function (res, rej) {
-  if(reject){
-  Promise.reject(new Error("don't contact"));
-  }
-      let socket
-			setTimeout(()=> rej('timeout'), timeout)
-          if(_isBrowser)
-          socket = new WebSocket(url)
-          else {
-            socket = new _ws(url)
-          }
-          socket.binaryType = "arraybuffer"
-          socket.onopen = (e)=>{
-            let dv = new DataView(data)
-            dv.setUint8(2, i)
-            socket.send(data)
-          }
+    _wsConnect(url, data, i, timeout = 10000) {
+      let reject = true;
+      let dv = new DataView(data);
+      if(this._activeServers.includes(i))
+        reject = false;
+        if(!reject || dv.getUint8(5) == 0x04){
+      return new Promise(function (res, rej) {
+        let socket;
+        setTimeout(() => rej('timeout'), timeout);
+        if (_isBrowser) socket = new WebSocket(url);else {
+          socket = new _ws(url);
+        }
+        socket.binaryType = "arraybuffer";
 
-          socket.onmessage = (e) =>{
-            //console.log("recieved message from ", i)
-            res(e)
-            socket.close(1000)
-          }
-          socket.onerror = (e) =>{
-            console.log("ws error: ", e.message)
-            rej(e)
-            socket.close()
-          }
+        socket.onopen = e => {
+          //let dv = new DataView(data);
+          dv.setUint8(2, i);
+          socket.send(data);
+        };
 
+        socket.onmessage = e => {
+          //console.log("recieved message from ", i)
+          res(e);
+          socket.close(1000);
+        };
 
-    })
-  }
+        socket.onerror = e => {
+          console.log("ws error: ", e.message);
+          rej(e);
+          socket.close();
+        };
+      });
+    }else{
+      return new Promise((res, rej)=>{rej()});
+    }
+
+    }
 
   _launchRequests(url, params = null, callback = null, servers = null, data = null) {
     if (params == null)
