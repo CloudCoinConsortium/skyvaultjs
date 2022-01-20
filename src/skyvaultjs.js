@@ -2156,7 +2156,8 @@ while(!eof){
     }
 
     if (params.amount > this._calcAmount(sns)) {
-      return this._getError("Not enough coins")
+      console.log("attempted to withdraw: ", params.amount)
+      return this._getError("Not enough coins, you don't have at least: ", this._calcAmount(sns));
     }
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
@@ -3668,7 +3669,7 @@ let status = dView.getUint8(2);
 
       if (!this._validResult(result)) balance = -1;
 
-      if (result == this.__counterfeitResult) {
+      if (rresult == this.__counterfeitResult) {
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit");
       }
 
