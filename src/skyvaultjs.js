@@ -319,7 +319,7 @@ async  apiPown(params, callback = null) {
 
 
     // Launch Requests
-    let rqs = this._launchRequests("multi_detect", rqdata, callback, this._activeServers)
+    let rqs = this._launchRequests("multi_detect", rqdata, callback)
 
     let rv = this._getGenericMainPromise(rqs, params).then(response => {
       this.addBreadCrumbReturn("apiDetect", response)
@@ -344,7 +344,7 @@ async  apiPown(params, callback = null) {
 
 
       // Launch Requests
-      let rqs = this._launchRequests("multi_detect", rqdata, callback, this._activeServers)
+      let rqs = this._launchRequests("multi_detect", rqdata, callback)
 
       let rv = this._getGenericMainPromise(rqs, params).then(response => {
         this.addBreadCrumbReturn("apiDetect", response)
@@ -566,7 +566,7 @@ let guid = this._generatePan()
     e = a = f = n = 0
     let statements = {}
     let serverResponses = []
-    let rqs = this._launchRequests("statements/read", rqdata, callback, this._activeServers)
+    let rqs = this._launchRequests("statements/read", rqdata, callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
         if (serverResponse === "error" || serverResponse == "network") {
@@ -1061,7 +1061,7 @@ let data = new DataView(serverResponse, offset)
     }*/
     let rqdata = this._formRequestData([coin], false, 11)
 
-    let rqs = this._launchRequests("get_ticket", rqdata, callback, this._activeServers)
+    let rqs = this._launchRequests("get_ticket", rqdata, callback)
     let rv = {
       status : 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -2048,7 +2048,7 @@ while(!eof){
     }
 
     // Launch Requests
-    let rqs = this._launchRequests("send", rqdata, callback, this._activeServers)
+    let rqs = this._launchRequests("send", rqdata, callback)
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       result.transaction_id = guid
       if (!('status' in result) || result.status != 'done')
@@ -2248,7 +2248,7 @@ while(!eof){
       } // Launch Requests
 
       // Launch Requests
-      let rqs = this._launchRequests("receive", rqdata, callback, this._activeServers)
+      let rqs = this._launchRequests("receive", rqdata, callback)
 
       let coins = new Array(coinsToReceive.length)
       coinsToReceive.forEach((value, idx) => {
@@ -2348,7 +2348,7 @@ while(!eof){
 			rqdata.push(ab)
 		}
 
-    let response = await this._launchRequests("break_in_bank", rqdata, callback, this._activeServers)
+    let response = await this._launchRequests("break_in_bank", rqdata, callback)
     let p = 0
     let rv = await this._parseMainPromise(response, 0, {}, response => {
       if (response == "error" || response == "network")
@@ -2973,7 +2973,7 @@ let ab, d
           }
 
     // Launch Requests
-    let rqs = this._launchRequests("transfer", rqdata, callback, this._activeServers, iteration)
+    let rqs = this._launchRequests("transfer", rqdata, callback, iteration)
 
     let coins = new Array(coinsToSend.length)
     coinsToSend.forEach((value, idx) => {
@@ -3010,7 +3010,7 @@ let ab, d
   		}
 
     let nrv = { d1 : {}, d5 : {}, d25 : {}, d100 : {}}
-    let rqs = this._launchRequests("show_change", rqdata, callback, this._activeServers).then(response => {
+    let rqs = this._launchRequests("show_change", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, nrv, response => {
         if (response === "error" || response === "network")
           return
@@ -3359,7 +3359,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
       }
     };
     let e, a, n = 0;
-    let rqs = await this._launchRequests("free_id", rqdata, callback, this._activeServers).then(response => {
+    let rqs = await this._launchRequests("free_id", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error") {
           //rv = this._getError("Failed to get free coin");
@@ -3567,7 +3567,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
     let ra, re, rf;
     ra = re = rf = 0;
 
-    let rqs = this._launchRequests("show_transfer_balance", rqdata, callback, this._activeServers).then(response => {
+    let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
@@ -4581,7 +4581,7 @@ let status = dView.getUint8(2);
       let skipRaidas = []
       let a, f, e
       a = f = e = 0
-      let rqs = this._launchRequests("show", rqdata, callback, this._activeServers).then(response => {
+      let rqs = this._launchRequests("show", rqdata, callback).then(response => {
         this._parseMainPromise(response, 0, rv, (response, rIdx) => {
           if (response == "network" || response == "error") {
             skipRaidas.push(rIdx)
@@ -4671,7 +4671,7 @@ let status = dView.getUint8(2);
       //triad = this._trustedTriads[raidaIdx][corner]
 
       rqdata = this._formRequestData(coins, false, 11)
-      rqs = this._launchRequests("multi_get_ticket", rqdata,  callback, this._activeServers)
+      rqs = this._launchRequests("multi_get_ticket", rqdata,  callback)
       resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
         if (a > 12)
           return this.__authenticResult
@@ -5218,8 +5218,13 @@ for(let j = 0; j < 25; j++){
   }
 
   _wsConnect(url, data, i, timeout = 10000) {
-
+    let reject = true;
+    if(this._activeServers.includes(i))
+      reject = false;
     return new Promise(function (res, rej) {
+  if(reject){
+  Promise.reject(new Error("don't contact"));
+  }
       let socket
 			setTimeout(()=> rej('timeout'), timeout)
           if(_isBrowser)
