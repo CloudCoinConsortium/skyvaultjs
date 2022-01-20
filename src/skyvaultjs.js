@@ -481,7 +481,7 @@ let guid = this._generatePan()
 
         d.setUint8(2, i); //raida id
         d.setUint8(5, 130); //command show statement
-        d.setUint8(8, 0x01); //coin id
+        d.setUint8(8, 0x00); //coin id
         d.setUint8(12, 0xAB); // echo
         d.setUint8(13, 0xAB); // echo
         d.setUint8(15, 0x01);//udp number
@@ -5105,7 +5105,7 @@ for(let j = 0; j < 25; j++){
   }
 
   _gradeCoin(a, f, e) {
-    if (a + f + e != this._totalServers)
+    if (a + f + e != this._activeServers.length)
       return this.__errorResult
 
 
