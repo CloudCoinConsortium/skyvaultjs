@@ -25,7 +25,7 @@ class SkyVaultJS {
       domain : "cloudcoin.global",
       prefix : "raida",
       protocol: "https",
-      wsprotocol: "ws",
+      wsprotocol: "wss",
       timeout: 10000, // ms
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
@@ -259,6 +259,7 @@ class SkyVaultJS {
 
   // Echo
   async apiEcho(callback = null) {
+    this._activeServers = []
     this.addBreadCrumbEntry("apiEcho")
 let ab = new ArrayBuffer(19 + 5)
 let d = new DataView(ab)
@@ -269,6 +270,7 @@ d.setUint8(13, 0xAB)// echo
 d.setUint8(15, 0x01)//udp number//udp number
 d.setUint8(22, 0x3e)
   d.setUint8(23, 0x3e) // Trailing chars
+
     let rqs = this._launchRequests("echo", ab, callback)
     let rv = {
       status: 'done',
@@ -278,7 +280,7 @@ d.setUint8(22, 0x3e)
       serverStatuses: [],
       details : []
     }
-this._activeServers = []
+
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
 
