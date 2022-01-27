@@ -33,7 +33,7 @@ class SkyVaultJS {
       debug: false,
       defaultRaidaForQuery: 7,
       defaultRaidaForBackupQuery: 14,
-      ddnsServer: "209.205.66.11",
+      ddnsServer: "ddns.cloudcoin.global",//"209.205.66.11",
       // max coins to transfer at a time
       maxCoins: 20000,
       maxCoinsPerIteraiton: 200,
@@ -854,7 +854,7 @@ let data = new DataView(serverResponse, offset)
       protocol = "http://";
 
 
-    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns_delete_nv.php?"
+    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns_delete.php?"
     url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
@@ -935,7 +935,7 @@ let protocol = "https://";
 if(this.wsprotocol == "ws")
   protocol = "http://";
 
-    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns_nv.php?"
+    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns.php?"
     url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
