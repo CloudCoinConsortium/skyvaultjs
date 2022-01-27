@@ -849,8 +849,12 @@ let data = new DataView(serverResponse, offset)
     let name = params['name']
 
     console.log("got delete ticket " + ticket)
+    let protocol = "https://";
+    if(this.wsprotocol == "ws")
+      protocol = "http://";
 
-    let url =  "https://" + this.options.ddnsServer + "/service/ddns/ddns_delete_nv.php?"
+
+    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns_delete_nv.php?"
     url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
@@ -927,7 +931,11 @@ let data = new DataView(serverResponse, offset)
     if (callback != null)
       callback(0, "register_dns")
 
-    let url =  "http://" + this.options.ddnsServer + "/service/ddns/ddns_nv.php?"
+let protocol = "https://";
+if(this.wsprotocol == "ws")
+  protocol = "http://";
+
+    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns_nv.php?"
     url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
@@ -2889,7 +2897,7 @@ while(!eof){
                 let dView = new DataView(serverResponse);
 
                 rv.res_status_code = dView.getUint8(2)
-                if (dView.getUint8(2) != 250) {
+                if (dView.getUint8(2) != 250 && dView.getUint8(2) != 241) {
                   rv.code = SkyVaultJS.ERR_HAS_ERROR
                 }
               });
@@ -3113,190 +3121,80 @@ let ab, d
     return rqs
   }
 
-  async apiFixTransferSync(coin, callback) {
+  async apiFixTransferSync(coin, balance=null, callback=null) {
     this.addBreadCrumbEntry("apiFixTransferSync", coinsPerRaida)
-    return this.apiFixTransferGeneric(coinsPerRaida, true, callback)
+    return this.apiFixTransferGeneric(coinsPerRaida, balance, callback)
   }
 
-  async apiFixTransfer(coin, callback) {
+  async apiFixTransfer(coin, balance = null, callback=null) {
     this.addBreadCrumbEntry("apiFixTransfer", coinsPerRaida)
-    return this.apiFixTransferGeneric(coinsPerRaida, false, callback)
+    return this.apiFixTransferGeneric(coinsPerRaida, balance, callback)
   }
 
-  async apiFixTransferGeneric(coin, sync, callback) {
+  async apiFixTransferGeneric(coin, bal=null, callback) {
     this.addBreadCrumbEntry("apiFixTransferGeneric", coinsPerRaida)
 
     if (typeof(coin) != "object")
       return this._getError("Failed to validate input args")
 
     let is_add = 2//1 = add, 0= delete, 2 = not sure
-    let bal = await this.apiShowBalance(coin, callback)
+    if( bal == null)
+      bal = await this.apiShowBalance(coin, callback)
     let lower = []
     let greater = []
-    for (let k = 0; k < this._totalServers; k++) {
-      if(bal.balancesPerRaida[k] < bal.balance && bal.balancesPerRaida[k] != null)
+    let maxB = 0
+    let trueBal = 0
+    for (let b in bal.balances) {
+      if (maxB < bal.balances[b]) {
+        maxB = bal.balances[b];
+        trueBal = b;
+      }
+    }
+
+
+    for (let k = 0; k < bal.balancesPerRaida.length; k++) {
+      if(bal.balancesPerRaida[k] < trueBal && bal.balancesPerRaida[k] != null)
         lower.push[k]
-      else if (bal.balancesPerRaida[k] = bal.balance) {
+      else if (bal.balancesPerRaida[k] > trueBal && bal.balancesPerRaida[k] != null) {
         greater.push[k]
       }
     }
-    if (lower.length <= 12)
-      is_add = 1
-    else if (greater.length <= 12)
-      is_add = 0
 
 let sns = []
-    if(is_add = 1){
-      let pivot = greater[0]
-      let missing1s, missing5s, missing25s, missing100s, missing250s = 0
+let missingAmount
+    if(lower.length > 0){
+      //let pivot = greater[0]//use trueBal
+
 for (let l in lower){
-missing1s = bal.denominations[pivot][1] - bal.denominations[l][1]
-missing5s = bal.denominations[pivot][5] - bal.denominations[l][5]
-missing25s = bal.denominations[pivot][25] - bal.denominations[l][25]
-missing100s = bal.denominations[pivot][100] - bal.denominations[l][100]
-missing250s = bal.denominations[pivot][250] - bal.denominations[l][250]
-if(missing1s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 1, ()=>{})
+missingAmount = trueBal - bal.balancesPerRaida[l]
+
+  let showcoin = this._getCoins(coin, ()=>{})
   for(let sn in showcoin.coinsPerRaida)
     if(showcoin.coinsPerRaida[sn][l] = 'no')
       sns.push(sn)
-}
-if(missing100s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 100, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'no')
-      sns.push(sn)
-}
-if(missing5s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 5, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'no')
-      sns.push(sn)
-}
-if(missing25s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 25, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'no')
-      sns.push(sn)
-}
-if(missing250s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 250, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'no')
-      sns.push(sn)
-}
 
 this._syncOwnersAddDelete(coin, sns, [l], 0)
 }
+}
 
 
+  sns = []
 
-    }else if(is_add = 0){
-let pivot = lower[0]
+if(greater.length > 0){
 for (let g in greater){
-missing1s = bal.denominations[g][1] - bal.denominations[pivot][1]
-missing5s = bal.denominations[g][5] - bal.denominations[pivot][5]
-missing25s = bal.denominations[g][25] - bal.denominations[pivot][25]
-missing100s = bal.denominations[g][100] - bal.denominations[pivot][100]
-missing250s = bal.denominations[g][250] - bal.denominations[pivot][250]
-if(missing1s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 1, ()=>{})
+missingAmount = bal.balancesPerRaida[g] - trueBal
+
+  let showcoin = this._getCoins(coin, ()=>{})
   for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'yes')
+    if(showcoin.coinsPerRaida[sn][g] = 'yes')
       sns.push(sn)
-}
-if(missing100s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 100, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'yes')
-      sns.push(sn)
-}
-if(missing5s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 5, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'yes')
-      sns.push(sn)
-}
-if(missing25s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 25, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'yes')
-      sns.push(sn)
-}
-if(missing250s > 0){
-  let showcoin = this._getShowCoinsByDenomination(coin, 250, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'yes')
-      sns.push(sn)
-}
+
+
 this._syncOwnersAddDelete(coin, sns, [g], 2)
 }
 
     }
 
-/*
-    let rqdata = []
-    for (let k in coinsPerRaida) {
-      let rs = coinsPerRaida[k]
-      let yes = 0
-      let no = 0
-      let yraidas = []
-      let nraidas = []
-      for (let i = 0; i < rs.length; i++) {
-        if (rs[i] == "yes") {
-          yes++
-          yraidas.push(i)
-          continue
-        }
-        if (rs[i] == "no") {
-          no++
-          nraidas.push(i)
-          continue
-        }
-      }
-      if (yes + no < this._totalServers - this.options.maxFailedRaidas) {
-        // No fix. a lot of network errors
-        continue
-      }
-      if (yes != 0 && no != 0) {
-        let raidas = []
-        if (yes == no) {
-          // Don't know what to do
-          console.log("Coin " + k + " has equal votes from all raida servers")
-          continue
-        }
-        if (yes > no) {
-          raidas = nraidas
-        } else {
-          raidas = yraidas
-        }
-        // Will fix coin on raida servers
-        for (let r = 0; r < raidas.length; r++) {
-          let rIdx = raidas[r]
-          if (!(rIdx in rqdata)) {
-            rqdata[rIdx] = {
-              sn : []
-            }
-            if (sync) {
-              rqdata[rIdx]['sync'] = "true"
-            }
-          }
-          // Will not add more than
-          if (rqdata[rIdx].sn.length >= this.options.maxCoinsPerIteraiton)
-            continue
-          rqdata[rIdx].sn.push(k)
-        }
-      }
-    }
-    let servers = Object.keys(rqdata)
-    let rv = {
-      "status":"done"
-    }
-    let rqs = this._launchRequests("sync/fix_transfer", rqdata, 'GET', callback, servers).then(response => {
-      return rv
-    })
-    return rqs
-    */
   }
    _getRandom(min, max) {
     min = Math.ceil(min);
