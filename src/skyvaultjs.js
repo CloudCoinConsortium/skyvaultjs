@@ -26,14 +26,14 @@ class SkyVaultJS {
       prefix : "raida",
       protocol: "https",
       wsprotocol: "wss",
-      timeout: 10000, // ms
+      timeout: 5000, // ms
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
       changeMakerId: 2,
       debug: false,
       defaultRaidaForQuery: 7,
       defaultRaidaForBackupQuery: 14,
-      ddnsServer: "ddns.cloudcoin.global",//"209.205.66.11",
+      ddnsServer: "ddns.cloudcoin.global",
       // max coins to transfer at a time
       maxCoins: 20000,
       maxCoinsPerIteraiton: 200,
@@ -3121,22 +3121,22 @@ let ab, d
     return rqs
   }
 
-  async apiFixTransferSync(coin, balance=null, callback=null) {
-    this.addBreadCrumbEntry("apiFixTransferSync", coinsPerRaida)
-    return this.apiFixTransferGeneric(coinsPerRaida, balance, callback)
+  async apiFixTransferSync(coin, callback=null) {
+    this.addBreadCrumbEntry("apiFixTransferSync", coin)
+    return this.apiFixTransferGeneric(coin, callback)
   }
 
-  async apiFixTransfer(coin, balance = null, callback=null) {
-    this.addBreadCrumbEntry("apiFixTransfer", coinsPerRaida)
-    return this.apiFixTransferGeneric(coinsPerRaida, balance, callback)
+  async apiFixTransfer(coin, callback=null) {
+    this.addBreadCrumbEntry("apiFixTransfer", coin)
+    return this.apiFixTransferGeneric(coin, callback)
   }
 
-  async apiFixTransferGeneric(coin, bal=null, callback) {
-    this.addBreadCrumbEntry("apiFixTransferGeneric", coinsPerRaida)
+  async apiFixTransferGeneric(coin, callback) {
+    this.addBreadCrumbEntry("apiFixTransferGeneric", coin)
 
     if (typeof(coin) != "object")
       return this._getError("Failed to validate input args")
-
+/*
     let is_add = 2//1 = add, 0= delete, 2 = not sure
     if( bal == null)
       bal = await this.apiShowBalance(coin, callback)
@@ -3159,24 +3159,36 @@ let ab, d
         greater.push[k]
       }
     }
-
-let sns = []
-let missingAmount
-    if(lower.length > 0){
-      //let pivot = greater[0]//use trueBal
-
-for (let l in lower){
-missingAmount = trueBal - bal.balancesPerRaida[l]
-
-  let showcoin = this._getCoins(coin, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][l] = 'no')
-      sns.push(sn)
-
-this._syncOwnersAddDelete(coin, sns, [l], 0)
-}
+    */
+let showcoin = await this._getCoins(coin, ()=>{})
+if (showcoin.code != 0) {
+  return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit");
 }
 
+
+  for(let sn in showcoin.coinsPerRaida){
+let nocount = 0;
+let yescount = 0;
+let l = []
+let g = []
+showcoin.coinsPerRaida[sn].forEach((e, i)=>{
+  if(e == 'no' || e == 'unknown'){
+    nocount++
+    l.push(i)
+  } else if (e == 'yes'){
+    yescount++
+    g.push(i)
+  }
+})
+    if(nocount > 0 && nocount < 10)
+      this._syncOwnersAddDelete(coin, [sn], l, 0)
+    if(yescount > 0  && yescount < 10)
+      this._syncOwnersAddDelete(coin, [sn], g, 2)
+}
+
+
+
+/*
 
   sns = []
 
@@ -3184,17 +3196,18 @@ if(greater.length > 0){
 for (let g in greater){
 missingAmount = bal.balancesPerRaida[g] - trueBal
 
-  let showcoin = this._getCoins(coin, ()=>{})
-  for(let sn in showcoin.coinsPerRaida)
-    if(showcoin.coinsPerRaida[sn][g] = 'yes')
+  for(let sn in showcoin.coinsPerRaida){
+    let yescount = 0;
+    showcoin.coinsPerRaida[sn].forEach((e)=>{if(e == 'yes') yescount++})
+    if(showcoin.coinsPerRaida[sn][g] == 'yes' && yescount < 10)
       sns.push(sn)
-
+}
 
 this._syncOwnersAddDelete(coin, sns, [g], 2)
 }
 
     }
-
+*/
   }
    _getRandom(min, max) {
     min = Math.ceil(min);
@@ -3493,7 +3506,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         }
 let dView = new DataView(response);
 let status = dView.getUint8(2);
-        if (status == 251 || response.byteLength < 13) {
+        if (status == 251) {
           rv.raidaStatuses[rIdx] = "f";
           rv.balancesPerRaida[rIdx] = null;
           //rv.denominations[rIdx] = null;
@@ -3510,7 +3523,9 @@ let status = dView.getUint8(2);
         }
 
         rv.raidaStatuses[rIdx] = "p";
-        let b = dView.getUint32(12);
+        let b = 0
+        if(response.byteLength > 12)
+        b = dView.getUint32(12);
         rv.balancesPerRaida[rIdx] = b;
         /*
         let dsplit = new DataView(response, 16)
