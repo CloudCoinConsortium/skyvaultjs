@@ -3122,17 +3122,17 @@ let ab, d
     return rqs
   }
 
-  async apiFixTransferSync(coin, callback=null) {
+  async apiFixTransferSync(coin, showncoins = null, callback=null) {
     this.addBreadCrumbEntry("apiFixTransferSync", coin)
-    return this.apiFixTransferGeneric(coin, callback)
+    return this.apiFixTransferGeneric(coin,showncoins, callback)
   }
 
-  async apiFixTransfer(coin, callback=null) {
+  async apiFixTransfer(coin, showncoins = null, callback=null) {
     this.addBreadCrumbEntry("apiFixTransfer", coin)
-    return this.apiFixTransferGeneric(coin, callback)
+    return this.apiFixTransferGeneric(coin, showncoins,callback)
   }
 
-  async apiFixTransferGeneric(coin, callback) {
+  async apiFixTransferGeneric(coin, showcoin = null, callback) {
     this.addBreadCrumbEntry("apiFixTransferGeneric", coin)
 
     if (typeof(coin) != "object")
@@ -3161,7 +3161,8 @@ let ab, d
       }
     }
     */
-let showcoin = await this._getCoins(coin, ()=>{})
+    if(showcoin == null)
+    showcoin = await this._getCoins(coin, ()=>{})
 if (showcoin.code != 0) {
   return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit");
 }
@@ -3209,6 +3210,12 @@ this._syncOwnersAddDelete(coin, sns, [g], 2)
 
     }
 */
+
+let rv = {
+  "status": "done",
+  "code": 0
+}
+return rv
   }
    _getRandom(min, max) {
     min = Math.ceil(min);
