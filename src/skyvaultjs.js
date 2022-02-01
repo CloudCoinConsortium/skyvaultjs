@@ -655,11 +655,12 @@ let data = new DataView(serverResponse, offset)
       let result = this._gradeCoin(a, f, e)
       if(n > 20)
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_RECORD_NOT_FOUND, "No Statements found");
+/*
         if (!this._validResult(result)){
           let er = this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to read statements. Too many error responses from RAIDA");
           this._addDetails(er, serverResponses);
           return er;
-        }
+        }*/
       for (let statement_id in statements) {
         let item = statements[statement_id]
         //let odata = this._getDataFromObjectMemo(item.mparts)
