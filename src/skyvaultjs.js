@@ -27,6 +27,7 @@ class SkyVaultJS {
       protocol: "https",
       wsprotocol: "wss",
       timeout: 5000, // ms
+      nexttimeout: 2000,
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
       changeMakerId: 2,
@@ -5087,7 +5088,7 @@ for(let j = 0; j < 25; j++){
       let serverResponse
       let dView
 
-      if (response[i].status != 'fulfilled') {
+      if (response[i].status != 'fulfilled' || response[i].value == undefined) {
         this._addDetails(rv)
         this.addSentryError("Network Error with RAIDA", i, response[i])
         callback("network", i)
@@ -5147,7 +5148,7 @@ for(let j = 0; j < 25; j++){
         if(!reject || dv.getUint8(5) == 0x04){
       return new Promise(function (res, rej) {
         let socket;
-        setTimeout(() => rej('timeout'), timeout);
+        //setTimeout(() => rej('timeout'), timeout);
         if (_isBrowser) socket = new WebSocket(url);else {
           socket = new _ws(url);
         }
@@ -5176,76 +5177,76 @@ for(let j = 0; j < 25; j++){
     }
 
     }
+    _launchRequests(url, params = null, callback = null, servers = null, data = null) {
+      if (params == null) params = {};
+      let pms = [];
+      let pms2 = [];
+      let firstReply = false;
+      let iteratedServers, iteratedServersIdxs;
 
-  _launchRequests(url, params = null, callback = null, servers = null, data = null) {
-    if (params == null)
-      params = {}
+      if (servers != null) {
+        iteratedServers = [];
 
-    let pms = []
-
-    let iteratedServers, iteratedServersIdxs
-    if (servers != null) {
-      iteratedServers = []
-      for (let i = 0; i < servers.length; i++) {
-        iteratedServers.push(this._raidaServers[servers[i]])
-      }
-      iteratedServersIdxs = servers
-    } else {
-      iteratedServers = this._raidaServers
-      iteratedServersIdxs = [...Array(this._totalServers).keys()]
-    }
-
-    for (let i = 0; i < iteratedServers.length; i++) {
-      let raidaIdx = iteratedServersIdxs[i]
-      let rq = iteratedServers[i]// + "/service/" + url
-
-      let pm
-      let options = {
-        timeout : this.options.timeout
-      }
-
-      let rparams
-      if ( typeof(params) === 'object' && Array.isArray(params)) {
-        rparams = params[raidaIdx]
-      }
-      else{
-        rparams = params
-
-}
-  pm = this._wsConnect(rq, rparams, raidaIdx, options.timeout);
-
-/*
-      if (method == 'GET') {
-        options.params = rparams
-        pm = this._axInstance.get(rq, options)
-      } else {
-        this.addBreadCrumb("POST " + rq, rparams)
-        pm = this._axInstance.post(rq, qs.stringify(rparams), options)
-      }
-*/
-
-      pm.then(response => {
-        if (callback != null)
-          callback(raidaIdx, url, data)
-
-        return response.data
-      }).catch(error => {
-        if (error.response) {
-          console.error("Invalid server response from RAIDA" + i + ": " + error.response.status)
-          this.addSentryError("Invalid response from RAIDA", i, error)
-        } else {
-          console.error("Failed to get a respose from RAIDA" + i)
-          this.addSentryError("Failed to get any response from RAIDA", i, error)
+        for (let i = 0; i < servers.length; i++) {
+          iteratedServers.push(this._raidaServers[servers[i]]);
         }
 
-        return null
-      })
+        iteratedServersIdxs = servers;
+      } else {
+        iteratedServers = this._raidaServers;
+        iteratedServersIdxs = [...Array(this._totalServers).keys()];
+      }
 
-      pms.push(pm)
+  let tm = new Promise((res, rej)=>{
+  setTimeout(()=>{
+    if(!firstReply)
+    rej("First Reply Timeout");
+  },this.options.timeout);
+  for (let i = 0; i < iteratedServers.length; i++) {
+    let raidaIdx = iteratedServersIdxs[i];
+    let rq = iteratedServers[i]; // + "/service/" + url
+
+    let pm;
+    let options = {
+      timeout: this.options.timeout
+    };
+    let rparams;
+
+    if (typeof params === 'object' && Array.isArray(params)) {
+      rparams = params[raidaIdx];
+    } else {
+      rparams = params;
     }
 
-    return allSettled(pms)
+    pm = this._wsConnect(rq, rparams, raidaIdx, options.timeout);
+
+    pm.then(response => {
+      if (callback != null) callback(raidaIdx, url, data);
+      pms2[raidaIdx] = response;
+      return response.data;
+    }).catch(error => {
+      if (error.response) {
+        console.error("Invalid server response from RAIDA" + i + ": " + error.response.status);
+        this.addSentryError("Invalid response from RAIDA", i, error);
+      } else {
+        console.error("Failed to get a respose from RAIDA" + i);
+        this.addSentryError("Failed to get any response from RAIDA", i, error);
+      }
+
+      return null;
+    });
+    pms.push(pm);
+
   }
+  Promise.race(pms).then(r=>{
+    firstReply = true;
+    setTimeout(()=>{res()}, this.options.nexttimeout);})//next reply timeout
+  Promise.allSettled(pms).then(r=>{res()});
+}).then(r=>{return allSettled(pms2);});
+
+      return tm;
+    }
+
 
   _initAxios() {
     this._axInstance = axios.create({
