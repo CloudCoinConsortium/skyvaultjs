@@ -26,8 +26,8 @@ class SkyVaultJS {
       prefix : "raida",
       protocol: "https",
       wsprotocol: "wss",
-      timeout: 5000, // ms
-      nexttimeout: 2000,
+      timeout: 10000, // ms
+      nexttimeout:5000,
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
       changeMakerId: 2,
@@ -1280,7 +1280,7 @@ if(this.wsprotocol == "ws")
     for (let i = 0; i < this._totalServers; i++) {
       let ctfix = []
       for (let j = 0; j < coins.length; j++) {
-        if (coins[j].pownArray[i] != 'f')
+        if (coins[j].pownArray[i] == 'a')
           continue;
 
         ctfix.push(coins[j])
@@ -1295,7 +1295,7 @@ if(this.wsprotocol == "ws")
     for (let i = this._totalServers - 1; i >= 0; i--) {
       let ctfix = []
       for (let j = 0; j < coins.length; j++) {
-        if (coins[j].pownArray[i] != 'f')
+        if (coins[j].pownArray[i] == 'a')
           continue;
 
         ctfix.push(coins[j])
@@ -1336,6 +1336,7 @@ if(this.wsprotocol == "ws")
     }
 
     // Append SuperFix results
+    /*
     for (let i = 0; i < superfixCoins.length; i++) {
       a = c = e = 0
       // Go over pownArray
@@ -1363,7 +1364,7 @@ if(this.wsprotocol == "ws")
       rv.result[superfixCoins[i].sn] = superfixCoins[i]
     }
 
-
+*/
     this.addBreadCrumbReturn("apiFixFracked", rv)
     return rv
   }
@@ -1634,17 +1635,18 @@ while(!eof){
       }
 
       if (signature == 'cLDc') {
-        let crcSig = this._getUint32(fu8, i + 8 + length)
-        let calcCrc = this._crc32(fu8, i + 4, length + 4)
+        let crcSig = this._getUint32(fu8, i + 40 + length)
+        let calcCrc = this._crc32(fu8, i + 4, length + 32)
+        /*
         if (crcSig != calcCrc) {
           return this._getError("Corrupted PNG. Invalid Crc32")
         }
-
+*/
         break
       }
 
-      // length + type + crc32 = 12 bytes
-      i += length + 12
+      // length + type + crc32 = 12 bytes// +32 == 44
+      i += length + 44
       if (i > fu8.length) {
         return this._getError("CloudCoin was not found")
         break
@@ -1652,21 +1654,35 @@ while(!eof){
 
     }
 
-    let data = fu8.slice(i + 8, i + 8 + length)
+    let data = fu8.slice(i + 40, i + 40 + length)
     let sdata = ""
-    for (let i = 0; i < data.length; i++)
-      sdata += String.fromCharCode(data[i])
-
+    let sn
+    let an = []
+    let cloudcoin = []
+    for (let i = 0; i < data.length / 416; i++){
+      let sn
+      let an = []
+      sn = this._getUint32(data,i*416) >> 8
+      for(let y = 0; y < 25; y++){
+        an.push("")
+        for (let x = 0; x < 16; x++) {
+          an[y] += data[(16 + x) + 416*i].toString()//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+        }
+      }
+      cloudcoin.push({"sn":sn, "an":an})
+    }
+      //sdata += String.fromCharCode(data[i])
+/*
     let o
     try {
       o = JSON.parse(sdata)
     } catch(e) {
       return this._getError("Failed to parse CloudCoin JSON")
     }
-
+*/
     let rv = {
       'status' : 'done',
-      ...o
+      'cloudcoin': cloudcoin
     }
 
     return rv
@@ -1905,8 +1921,20 @@ while(!eof){
       }
       delete params['coins'][i]['pan']
     }
+
     let data = { "cloudcoin" : params['coins'] }
-    data = JSON.stringify(data)
+    //data = JSON.stringify(data)
+
+    let coindatabuffer = new ArrayBuffer(416*data.cloudcoin.length)
+    let coindataview = new DataView(coindatabuffer)
+    data.cloudcoin.forEach((dcoin, i) => {
+      coindataview.setUint32(0 + 416*i, dcoin.sn << 8)
+      for(let y = 0; y < 25; y++)
+      for (let x = 0; x < 16; x++) {
+        coindataview.setUint8((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+      }
+    });
+
 
     let isError = false
     let imgAx = axios.create()
@@ -1933,10 +1961,10 @@ while(!eof){
     fu8 = imgData.slice(0, idx + 4)
     lu8 = imgData.slice(idx + 4)
 
-    let ccLength = data.length
+    let ccLength = 416*data.cloudcoin.length//data.length//change to reflect new format
 
-    // length + type + crc32 = 12 bytes
-    myu8 = new Uint8Array(ccLength + 12)
+    // length + type + crc32 = 12 bytes //+ new format headers(32) = 44
+    myu8 = new Uint8Array(ccLength + 44)
 
     // Length
     this._setUint32(myu8, 0, ccLength)
@@ -1946,16 +1974,17 @@ while(!eof){
     myu8[5] = 0x4c
     myu8[6] = 0x44
     myu8[7] = 0x63
+    myu8[11] = 0x01
 
-    let tBuffer = Buffer.from(data)
+    //let tBuffer = Buffer.from(data)
     // Data
     for (let i = 0; i < ccLength; i++) {
-      myu8[i + 8] = tBuffer.readUInt8(i)
+      myu8[i + 40] = coindataview.getUint8(i)//tBuffer.readUInt8(i)
     }
 
     // Crc32
-    let crc32 = this._crc32(myu8, 4, ccLength + 4)
-    this._setUint32(myu8, ccLength + 8, crc32)
+    let crc32 = this._crc32(myu8, 4, ccLength + 36)//
+    this._setUint32(myu8, ccLength + 40, crc32)//add to 8 the rest of the header bytes
 
     let combined = [...fu8, ...myu8, ...lu8]
 
@@ -4589,81 +4618,86 @@ let status = dView.getUint8(2);
 
   // Doing internal fix
   async _realFix(round, raidaIdx, coins, callback = null) {
-    let rqdata, triad, rqs, resultData
-    //for (let corner = 0; corner < 4; corner++) {
-      //triad = this._trustedTriads[raidaIdx][corner]
+    let rqdata, triad, rqs, resultData; //for (let corner = 0; corner < 4; corner++) {
+    //triad = this._trustedTriads[raidaIdx][corner]
 
-      rqdata = this._formRequestData(coins, false, 11)
-      rqs = this._launchRequests("multi_get_ticket", rqdata,  callback)
-      resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
-        if (a > 12)
-          return this.__authenticResult
+    rqdata = this._formRequestData(coins, false, 11);
+    rqs = this._launchRequests("multi_get_ticket", rqdata, callback);
+    resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
+      if (a > 12) return this.__authenticResult;
+      return this.__counterfeitResult;
+    });
 
-        return this.__counterfeitResult
-      })
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    let ab = new ArrayBuffer(24 + 16 + 4 * 25 + 19 * coins.length);
+    let d = new DataView(ab);
+    d.setUint8(ab.byteLength - 1, 0x3e);
+    d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
 
-      let ab = new ArrayBuffer(19+16+16+(4*25)+(3*coins.length)+5)
-      let d = new DataView(ab)
-      d.setUint8(ab.byteLength -1, 0x3e);
-        d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
-        d.setUint8(2, raidaIdx) //raida id
-        d.setUint8(5, 3);//command fix
-        d.setUint8(8, 0x01);//coin id
-        d.setUint8(12, 0xAB);// echo
-        d.setUint8(13, 0xAB);// echo
-        d.setUint8(15, 0x01)//udp number;//udp number
+    d.setUint8(2, raidaIdx); //raida id
 
-        for (let x = 0; x < 16; x++) {
-          d.setUint8(38 + (3*coins.length) + x, parseInt(coins[0].pan[raidaIdx].substr(x * 2, 2), 16));
-        }
+    d.setUint8(5, 50); //command fix
 
-      let i = 0
-      for (let sn in resultData['result']) {
-        let coin = resultData['result'][sn]
-        d.setUint32(38 + (i * 3), coin.sn << 8)
-        i++
+    if(coins[0].sn >= 26000 && coins[0].sn <= 100000){
+    d.setUint8(8, 0x00); //coin id
+    }else{
+    d.setUint8(8, 0x01); //coin id
+    }
+
+    d.setUint8(12, 0xAB); // echo
+
+    d.setUint8(13, 0xAB); // echo
+
+    d.setUint8(15, 0x01); //udp number;//udp number
+
+    for (let x = 0; x < 16; x++) {
+      d.setUint8(22 + x, challange[x]);
+    }
+
+    let i = 0;
+
+    for (let sn in resultData['result']) {
+      let coin = resultData['result'][sn];
+      d.setUint32(38 + i * 19, coin.sn << 8);
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(41 + 19 * i + x, parseInt(coin.an[raidaIdx].substr(x * 2, 2), 16));
       }
-for(let j = 0; j < 25; j++){
-  if ('tickets' in resultData.result[coins[0].sn])
-  d.setUint32(38 + (3*coins.length) + 16 +(j*4), resultData['result'][coins[0].sn].tickets[i])
-  else {
-    d.setUint32(38 + (3*coins.length) + 16+(j*4), 0)
-  }
-}
+      i++;
+    }
+//console.log("ticket ", resultData['result'][coins[0].sn].tickets);
+    for (let j = 0; j < 25; j++) {
 
-
-      // exec fix fracked
-      rqs = this._launchRequests("multi_fix", ab, callback, [raidaIdx])
-      resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
-        if (a == 1 && c == 0 && e == 0)
-          return this.__authenticResult
-
-        return this.__counterfeitResult
-      })
-
-      resultData = resultData['result']
-
-      let cfixed = 0
-      for (let i = 0; i < coins.length; i++) {
-        let sn = coins[i].sn
-
-        if (!(sn in resultData))
-          continue
-
-        let coinResult = resultData[sn].result
-        if (coinResult !=  this.__authenticResult)
-          continue
-
-        let newpan = md5(i.toString()+sn.toString()+coins[0].pan[raidaIdx])
-        coins[i].an[raidaIdx] = newpan
-        coins[i].pownArray[raidaIdx] = 'p'
-
-        cfixed++
+      if ('tickets' in resultData.result[coins[0].sn] && j != raidaIdx) d.setUint32(38 + 19 * coins.length  + j * 4, resultData['result'][coins[0].sn].tickets[j]);else {
+        d.setUint32(38 + 19 * coins.length + j * 4, 0);
       }
+    } // exec fix fracked
 
-    //  if (cfixed == coins.length)
-        //break
+//console.log(d);
+
+    rqs = this._launchRequests("multi_fix", ab, callback, [raidaIdx]);
+    resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
+      if (a == 1 && c == 0 && e == 0) return this.__authenticResult;
+      return this.__counterfeitResult;
+    });
+
+    resultData = resultData['result'];
+    let cfixed = 0;
+
+    for (let i = 0; i < coins.length; i++) {
+      let sn = coins[i].sn;
+      if (!(sn in resultData)) continue;
+      let coinResult = resultData[sn].result;
+      if (coinResult != this.__authenticResult) continue;
+      /*
+      let newpan = (0, _jsMd.default)(i.toString() + sn.toString() + coins[0].pan[raidaIdx]);
+      coins[i].an[raidaIdx] = newpan;
+      */
+      coins[i].pownArray[raidaIdx] = 'p';
+      cfixed++;
+    } //  if (cfixed == coins.length)
+    //break
     //}
+
   }
 
 
@@ -4985,7 +5019,7 @@ for(let j = 0; j < 25; j++){
             if (!('tickets' in rcoins[sn]))
               rcoins[sn].tickets = []
             if(sr.byteLength >= 16)
-            rcoins[sn].tickets[raidaIdx] = sr.getUint32(3)
+            rcoins[sn].tickets[raidaIdx] = sr.getUint32(12)
           } else if (status == 242 || status == 251||(status == 243 && mixed == 0)) {
             rcoins[sn].counterfeit++;
             rcoins[sn].pownstring += "f"
@@ -5028,8 +5062,8 @@ for(let j = 0; j < 25; j++){
   }
 
   _gradeCoin(a, f, e) {
-    if (a + f + e < this._activeServers.length)
-      return this.__errorResult
+    //if (a + f + e < this._activeServers.length)
+    //  return this.__errorResult
 
 
     if (a >= this.options.minPassedNumToBeAuthentic) {
