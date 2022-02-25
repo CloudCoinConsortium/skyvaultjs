@@ -1290,7 +1290,7 @@ if(this.wsprotocol == "ws")
         await this._realFix(0, i, ctfix, callback)
       }
     }
-
+/*
     // Round 2
     for (let i = this._totalServers - 1; i >= 0; i--) {
       let ctfix = []
@@ -1304,7 +1304,7 @@ if(this.wsprotocol == "ws")
         await this._realFix(1, i, coins, callback)
       }
     }
-
+*/
 
     // Form the result after all fixings are done
     let a, c, e
@@ -1621,7 +1621,7 @@ while(!eof){
     let i = 0
     let length
     while (true) {
-      length = this._getUint32(fu8, i)
+      length = this._getUint32(fu8, i) - 32
       let signature = String.fromCharCode(fu8[i + 4]) +  String.fromCharCode(fu8[i + 5])
         + String.fromCharCode(fu8[i + 6]) +  String.fromCharCode(fu8[i + 7])
 
@@ -1659,14 +1659,15 @@ while(!eof){
     let sn
     let an = []
     let cloudcoin = []
-    for (let i = 0; i < data.length / 416; i++){
+    let numcoins = floor(data.length / 416)
+    for (let i = 0; i < numcoins; i++){
       let sn
       let an = []
-      sn = this._getUint32(data,i*416) >> 8
+      sn = this._getUint32(data,i*416) >>> 8
       for(let y = 0; y < 25; y++){
         an.push("")
         for (let x = 0; x < 16; x++) {
-          an[y] += data[(16 + x) + 416*i].toString()//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+          an[y] += data[(y+1)*16 + x + 416*i].toString()//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
         }
       }
       cloudcoin.push({"sn":sn, "an":an})
@@ -1929,10 +1930,11 @@ while(!eof){
     let coindataview = new DataView(coindatabuffer)
     data.cloudcoin.forEach((dcoin, i) => {
       coindataview.setUint32(0 + 416*i, dcoin.sn << 8)
-      for(let y = 0; y < 25; y++)
+      for(let y = 0; y < 25; y++){
       for (let x = 0; x < 16; x++) {
-        coindataview.setUint8((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+        coindataview.setUint8((y+1)*16 + x + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
       }
+    }
     });
 
 
@@ -1967,7 +1969,7 @@ while(!eof){
     myu8 = new Uint8Array(ccLength + 44)
 
     // Length
-    this._setUint32(myu8, 0, ccLength)
+    this._setUint32(myu8, 0, ccLength + 32)
 
     // Chunk type cLDc
     myu8[4] = 0x63
@@ -5174,7 +5176,7 @@ let status = dView.getUint8(2);
     }
   }
 
-    _wsConnect(url, data, i, timeout = 10000) {
+    _wsConnect(url, data, i, timeout = 10000, st) {
       let reject = true;
       let dv = new DataView(data);
       if(this._activeServers.includes(i))
@@ -5189,13 +5191,13 @@ let status = dView.getUint8(2);
         socket.binaryType = "arraybuffer";
 
         socket.onopen = e => {
-          //let dv = new DataView(data);
+          console.log("sending ", i, Date.now() - st);
           dv.setUint8(2, i);
           socket.send(data);
         };
 
         socket.onmessage = e => {
-          //console.log("recieved message from ", i)
+          console.log("recieving ", i, Date.now() - st);
           res(e);
           socket.close(1000);
         };
@@ -5236,6 +5238,7 @@ let status = dView.getUint8(2);
     if(!firstReply)
     rej("First Reply Timeout");
   },this.options.timeout);
+  let st = Date.now();
   for (let i = 0; i < iteratedServers.length; i++) {
     let raidaIdx = iteratedServersIdxs[i];
     let rq = iteratedServers[i]; // + "/service/" + url
@@ -5252,7 +5255,7 @@ let status = dView.getUint8(2);
       rparams = params;
     }
 
-    pm = this._wsConnect(rq, rparams, raidaIdx, options.timeout);
+    pm = this._wsConnect(rq, rparams, raidaIdx, options.timeout, st);
 
     pm.then(response => {
       if (callback != null) callback(raidaIdx, url, data);
