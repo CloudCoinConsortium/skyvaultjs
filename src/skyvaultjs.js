@@ -54,6 +54,7 @@ class SkyVaultJS {
     this._raidaServers = []
     this._activeServers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
     this._totalServers = 25
+    this.highestrestime = 0
     this._generateServers()
     this._initAxios()
 
@@ -1659,7 +1660,7 @@ while(!eof){
     let sn
     let an = []
     let cloudcoin = []
-    let numcoins = floor(data.length / 416)
+    let numcoins = Math.floor(data.length / 416)
     for (let i = 0; i < numcoins; i++){
       let sn
       let an = []
@@ -1667,7 +1668,8 @@ while(!eof){
       for(let y = 0; y < 25; y++){
         an.push("")
         for (let x = 0; x < 16; x++) {
-          an[y] += data[(y+1)*16 + x + 416*i].toString()//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+          if(data[(y+1)*16 + x + 416*i] < 16) an[y] += "0";
+          an[y] += data[(y+1)*16 + x + 416*i].toString(16)//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
         }
       }
       cloudcoin.push({"sn":sn, "an":an})
@@ -5177,6 +5179,7 @@ let status = dView.getUint8(2);
   }
 
     _wsConnect(url, data, i, timeout = 10000, st) {
+      let thiz = this
       let reject = true;
       let dv = new DataView(data);
       if(this._activeServers.includes(i))
@@ -5197,7 +5200,10 @@ let status = dView.getUint8(2);
         };
 
         socket.onmessage = e => {
-          console.log("recieving ", i, Date.now() - st);
+          let restime = Date.now() - st;
+          console.log("recieving ", i, restime);
+          if(restime > thiz.highestrestime)
+          thiz.highestrestime = restime;
           res(e);
           socket.close(1000);
         };
@@ -5279,7 +5285,9 @@ let status = dView.getUint8(2);
     firstReply = true;
     setTimeout(()=>{res()}, this.options.nexttimeout);})//next reply timeout
   Promise.allSettled(pms).then(r=>{res()});
-}).then(r=>{return allSettled(pms2);});
+}).then(r=>{
+this.options.nexttimeout = this.highestrestime + 1000;
+  return allSettled(pms2);});
 
       return tm;
     }
