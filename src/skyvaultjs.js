@@ -5245,42 +5245,604 @@ let status = dView.getUint8(2);
     rej("First Reply Timeout");
   },this.options.timeout);
   let st = Date.now();
-  for (let i = 0; i < iteratedServers.length; i++) {
-    let raidaIdx = iteratedServersIdxs[i];
-    let rq = iteratedServers[i]; // + "/service/" + url
+  //for (let i = 0; i < iteratedServers.length; i++) {
 
-    let pm;
+
+let raidaIdx0 = iteratedServersIdxs[0];
+let raidaIdx1 = iteratedServersIdxs[1];
+let raidaIdx2 = iteratedServersIdxs[2];
+let raidaIdx3 = iteratedServersIdxs[3];
+let raidaIdx4 = iteratedServersIdxs[4];
+let raidaIdx5 = iteratedServersIdxs[5];
+let raidaIdx6 = iteratedServersIdxs[6];
+let raidaIdx7 = iteratedServersIdxs[7];
+let raidaIdx8 = iteratedServersIdxs[8];
+let raidaIdx9 = iteratedServersIdxs[9];
+let raidaIdx10 = iteratedServersIdxs[10];
+let raidaIdx11 = iteratedServersIdxs[11];
+let raidaIdx12 = iteratedServersIdxs[12];
+let raidaIdx13 = iteratedServersIdxs[13];
+let raidaIdx14 = iteratedServersIdxs[14];
+let raidaIdx15 = iteratedServersIdxs[15];
+let raidaIdx16 = iteratedServersIdxs[16];
+let raidaIdx17 = iteratedServersIdxs[17];
+let raidaIdx18 = iteratedServersIdxs[18];
+let raidaIdx19 = iteratedServersIdxs[19];
+let raidaIdx20 = iteratedServersIdxs[20];
+let raidaIdx21 = iteratedServersIdxs[21];
+let raidaIdx22 = iteratedServersIdxs[22];
+let raidaIdx23 = iteratedServersIdxs[23];
+let raidaIdx24 = iteratedServersIdxs[24];
+
+let rq0 = iteratedServers[0]; // + "/service/" + url
+let rq1 = iteratedServers[1]; // + "/service/" + url
+let rq2 = iteratedServers[2]; // + "/service/" + url
+let rq3 = iteratedServers[3]; // + "/service/" + url
+let rq4 = iteratedServers[4]; // + "/service/" + url
+let rq5 = iteratedServers[5]; // + "/service/" + url
+let rq6 = iteratedServers[6]; // + "/service/" + url
+let rq7 = iteratedServers[7]; // + "/service/" + url
+let rq8 = iteratedServers[8]; // + "/service/" + url
+let rq9 = iteratedServers[9]; // + "/service/" + url
+let rq10 = iteratedServers[10]; // + "/service/" + url
+let rq11 = iteratedServers[11]; // + "/service/" + url
+let rq12 = iteratedServers[12]; // + "/service/" + url
+let rq13 = iteratedServers[13]; // + "/service/" + url
+let rq14 = iteratedServers[14]; // + "/service/" + url
+let rq15 = iteratedServers[15]; // + "/service/" + url
+let rq16 = iteratedServers[16]; // + "/service/" + url
+let rq17 = iteratedServers[17]; // + "/service/" + url
+let rq18 = iteratedServers[18]; // + "/service/" + url
+let rq19 = iteratedServers[19]; // + "/service/" + url
+let rq20 = iteratedServers[20]; // + "/service/" + url
+let rq21 = iteratedServers[21]; // + "/service/" + url
+let rq22 = iteratedServers[22]; // + "/service/" + url
+let rq23 = iteratedServers[23]; // + "/service/" + url
+let rq24 = iteratedServers[24]; // + "/service/" + url
+
+
+
+let pm0,pm1,pm2,pm3,pm4,pm5,pm6,pm7,pm8,pm9,pm10,pm11,pm12,pm13,pm14,pm15,pm16,pm17,pm18,pm19,pm20,pm21,pm22,pm23,pm24;
+let rparams0,rparams1,rparams2,rparams3,rparams4,rparams5,rparams6,rparams7,rparams8,rparams9,rparams10,rparams11,rparams12,rparams13,rparams14,rparams15,rparams16,rparams17,rparams18,rparams19,rparams20,rparams21,rparams22,rparams23,rparams24;
+
     let options = {
       timeout: this.options.timeout
     };
-    let rparams;
 
-    if (typeof params === 'object' && Array.isArray(params)) {
-      rparams = params[raidaIdx];
-    } else {
-      rparams = params;
-    }
 
-    pm = this._wsConnect(rq, rparams, raidaIdx, options.timeout, st);
 
-    pm.then(response => {
-      if (callback != null) callback(raidaIdx, url, data);
-      pms2[raidaIdx] = response;
-      return response.data;
-    }).catch(error => {
-      if (error.response) {
-        console.error("Invalid server response from RAIDA" + i + ": " + error.response.status);
-        this.addSentryError("Invalid response from RAIDA", i, error);
-      } else {
-        console.error("Failed to get a respose from RAIDA" + i);
-        this.addSentryError("Failed to get any response from RAIDA", i, error);
-      }
 
-      return null;
-    });
-    pms.push(pm);
+if (typeof params === 'object' && Array.isArray(params)) {
+  rparams0 = params[raidaIdx0];
+rparams1 = params[raidaIdx1];
+rparams2 = params[raidaIdx2];
+rparams3 = params[raidaIdx3];
+rparams4 = params[raidaIdx4];
+rparams5 = params[raidaIdx5];
+rparams6 = params[raidaIdx6];
+rparams7 = params[raidaIdx7];
+rparams8 = params[raidaIdx8];
+rparams9 = params[raidaIdx9];
+rparams10 = params[raidaIdx10];
+rparams11 = params[raidaIdx11];
+rparams12 = params[raidaIdx12];
+rparams13 = params[raidaIdx13];
+rparams14 = params[raidaIdx14];
+rparams15 = params[raidaIdx15];
+rparams16 = params[raidaIdx16];
+rparams17 = params[raidaIdx17];
+rparams18 = params[raidaIdx18];
+rparams19 = params[raidaIdx19];
+rparams20 = params[raidaIdx20];
+rparams21 = params[raidaIdx21];
+rparams33 = params[raidaIdx22];
+rparams23 = params[raidaIdx23];
+rparams24 = params[raidaIdx24];
+} else {
+  rparams0 = params;
+rparams1 = params;
+rparams2 = params;
+rparams3 = params;
+rparams4 = params;
+rparams5 = params;
+rparams6 = params;
+rparams7 = params;
+rparams8 = params;
+rparams9 = params;
+rparams10 = params;
+rparams11 = params;
+rparams12 = params;
+rparams13 = params;
+rparams14 = params;
+rparams15 = params;
+rparams16 = params;
+rparams17 = params;
+rparams18 = params;
+rparams19 = params;
+rparams20 = params;
+rparams21 = params;
+rparams22 = params;
+rparams23 = params;
+rparams24 = params;
+}
 
-  }
+    pm0 = this._wsConnect(rq0, rparams0, raidaIdx0, options.timeout, st);
+pm1 = this._wsConnect(rq1, rparams1, raidaIdx1, options.timeout, st);
+pm2 = this._wsConnect(rq2, rparams2, raidaIdx2, options.timeout, st);
+pm3 = this._wsConnect(rq3, rparams3, raidaIdx3, options.timeout, st);
+pm4 = this._wsConnect(rq4, rparams4, raidaIdx4, options.timeout, st);
+pm5 = this._wsConnect(rq5, rparams5, raidaIdx5, options.timeout, st);
+pm6 = this._wsConnect(rq6, rparams6, raidaIdx6, options.timeout, st);
+pm7 = this._wsConnect(rq7, rparams7, raidaIdx7, options.timeout, st);
+pm8 = this._wsConnect(rq8, rparams8, raidaIdx8, options.timeout, st);
+pm9 = this._wsConnect(rq9, rparams9, raidaIdx9, options.timeout, st);
+pm10 = this._wsConnect(rq10, rparams10, raidaIdx10, options.timeout, st);
+pm11 = this._wsConnect(rq11, rparams11, raidaIdx11, options.timeout, st);
+pm12 = this._wsConnect(rq12, rparams12, raidaIdx12, options.timeout, st);
+pm13 = this._wsConnect(rq13, rparams13, raidaIdx13, options.timeout, st);
+pm14 = this._wsConnect(rq14, rparams14, raidaIdx14, options.timeout, st);
+pm15 = this._wsConnect(rq15, rparams15, raidaIdx15, options.timeout, st);
+pm16 = this._wsConnect(rq16, rparams16, raidaIdx16, options.timeout, st);
+pm17 = this._wsConnect(rq17, rparams17, raidaIdx17, options.timeout, st);
+pm18 = this._wsConnect(rq18, rparams18, raidaIdx18, options.timeout, st);
+pm19 = this._wsConnect(rq19, rparams19, raidaIdx19, options.timeout, st);
+pm20 = this._wsConnect(rq20, rparams20, raidaIdx20, options.timeout, st);
+pm21 = this._wsConnect(rq21, rparams21, raidaIdx21, options.timeout, st);
+pm22 = this._wsConnect(rq22, rparams22, raidaIdx22, options.timeout, st);
+pm23 = this._wsConnect(rq23, rparams23, raidaIdx23, options.timeout, st);
+pm24 = this._wsConnect(rq24, rparams24, raidaIdx24, options.timeout, st);
+
+pm0.then(response => {
+if (callback != null) callback(raidaIdx0, url, data);
+pms2[0] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 0 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 0, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 0);
+this.addSentryError("Failed to get any response from RAIDA", 0, error);
+}
+
+return null;
+});
+pms.push(pm0);
+
+
+
+pm1.then(response => {
+if (callback != null) callback(raidaIdx1, url, data);
+pms2[1] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 1 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 1, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 1);
+this.addSentryError("Failed to get any response from RAIDA", 1, error);
+}
+
+return null;
+});
+pms.push(pm1);
+
+
+
+pm2.then(response => {
+if (callback != null) callback(raidaIdx2, url, data);
+pms2[2] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 2 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 2, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 2);
+this.addSentryError("Failed to get any response from RAIDA", 2, error);
+}
+
+return null;
+});
+pms.push(pm2);
+
+
+pm3.then(response => {
+if (callback != null) callback(raidaIdx3, url, data);
+pms2[3] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 3 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 3, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 3);
+this.addSentryError("Failed to get any response from RAIDA", 3, error);
+}
+
+return null;
+});
+pms.push(pm3);
+
+pm4.then(response => {
+if (callback != null) callback(raidaIdx4, url, data);
+pms2[4] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 4 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 4, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 4);
+this.addSentryError("Failed to get any response from RAIDA", 4, error);
+}
+
+return null;
+});
+pms.push(pm4);
+
+
+pm5.then(response => {
+if (callback != null) callback(raidaIdx5, url, data);
+pms2[5] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 5 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 5, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 5);
+this.addSentryError("Failed to get any response from RAIDA", 5, error);
+}
+
+return null;
+});
+pms.push(pm5);
+
+
+pm6.then(response => {
+if (callback != null) callback(raidaIdx6, url, data);
+pms2[6] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 6 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 6, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 6);
+this.addSentryError("Failed to get any response from RAIDA", 6, error);
+}
+
+return null;
+});
+pms.push(pm6);
+
+
+pm7.then(response => {
+if (callback != null) callback(raidaIdx7, url, data);
+pms2[7] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 7 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 7, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 7);
+this.addSentryError("Failed to get any response from RAIDA", 7, error);
+}
+
+return null;
+});
+pms.push(pm7);
+
+
+pm8.then(response => {
+if (callback != null) callback(raidaIdx8, url, data);
+pms2[8] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 8 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 8, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 8);
+this.addSentryError("Failed to get any response from RAIDA", 8, error);
+}
+
+return null;
+});
+pms.push(pm8);
+
+
+pm9.then(response => {
+if (callback != null) callback(raidaIdx9, url, data);
+pms2[9] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 9 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 9, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 9);
+this.addSentryError("Failed to get any response from RAIDA", 9, error);
+}
+
+return null;
+});
+pms.push(pm9);
+
+
+pm10.then(response => {
+if (callback != null) callback(raidaIdx10, url, data);
+pms2[10] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 10 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 10, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 10);
+this.addSentryError("Failed to get any response from RAIDA", 10, error);
+}
+
+return null;
+});
+pms.push(pm10);
+
+
+pm11.then(response => {
+if (callback != null) callback(raidaIdx11, url, data);
+pms2[11] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 11 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 11, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 11);
+this.addSentryError("Failed to get any response from RAIDA", 11, error);
+}
+
+return null;
+});
+pms.push(pm11);
+
+
+pm12.then(response => {
+if (callback != null) callback(raidaIdx12, url, data);
+pms2[12] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 12 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 12, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 12);
+this.addSentryError("Failed to get any response from RAIDA", 12, error);
+}
+
+return null;
+});
+pms.push(pm12);
+
+
+pm13.then(response => {
+if (callback != null) callback(raidaIdx13, url, data);
+pms2[13] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 13 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 13, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 13);
+this.addSentryError("Failed to get any response from RAIDA", 13, error);
+}
+
+return null;
+});
+pms.push(pm13);
+
+
+pm14.then(response => {
+if (callback != null) callback(raidaIdx14, url, data);
+pms2[14] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 14 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 14, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 14);
+this.addSentryError("Failed to get any response from RAIDA", 14, error);
+}
+
+return null;
+});
+pms.push(pm14);
+
+
+pm15.then(response => {
+if (callback != null) callback(raidaIdx15, url, data);
+pms2[15] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 15 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 15, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 15);
+this.addSentryError("Failed to get any response from RAIDA", 15, error);
+}
+
+return null;
+});
+pms.push(pm15);
+
+
+pm16.then(response => {
+if (callback != null) callback(raidaIdx16, url, data);
+pms2[16] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 16 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 16, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 16);
+this.addSentryError("Failed to get any response from RAIDA", 16, error);
+}
+
+return null;
+});
+pms.push(pm16);
+
+
+pm17.then(response => {
+if (callback != null) callback(raidaIdx17, url, data);
+pms2[17] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 17 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 17, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 17);
+this.addSentryError("Failed to get any response from RAIDA", 17, error);
+}
+
+return null;
+});
+pms.push(pm17);
+
+
+pm18.then(response => {
+if (callback != null) callback(raidaIdx18, url, data);
+pms2[18] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 18 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 18, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 18);
+this.addSentryError("Failed to get any response from RAIDA", 18, error);
+}
+
+return null;
+});
+pms.push(pm18);
+
+
+pm19.then(response => {
+if (callback != null) callback(raidaIdx19, url, data);
+pms2[19] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 19 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 19, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 19);
+this.addSentryError("Failed to get any response from RAIDA", 19, error);
+}
+
+return null;
+});
+pms.push(pm19);
+
+
+pm20.then(response => {
+if (callback != null) callback(raidaIdx20, url, data);
+pms2[20] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 20 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 20, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 20);
+this.addSentryError("Failed to get any response from RAIDA", 20, error);
+}
+
+return null;
+});
+pms.push(pm20);
+
+
+pm21.then(response => {
+if (callback != null) callback(raidaIdx21, url, data);
+pms2[21] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 21 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 21, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 21);
+this.addSentryError("Failed to get any response from RAIDA", 21, error);
+}
+
+return null;
+});
+pms.push(pm21);
+
+
+pm22.then(response => {
+if (callback != null) callback(raidaIdx22, url, data);
+pms2[22] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 22 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 22, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 22);
+this.addSentryError("Failed to get any response from RAIDA", 22, error);
+}
+
+return null;
+});
+pms.push(pm22);
+
+
+pm23.then(response => {
+if (callback != null) callback(raidaIdx23, url, data);
+pms2[23] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 23 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 23, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 23);
+this.addSentryError("Failed to get any response from RAIDA", 23, error);
+}
+
+return null;
+});
+pms.push(pm23);
+
+
+pm24.then(response => {
+if (callback != null) callback(raidaIdx24, url, data);
+pms2[24] = response;
+return response.data;
+}).catch(error => {
+if (error.response) {
+console.error("Invalid server response from RAIDA" + 24 + ": " + error.response.status);
+this.addSentryError("Invalid response from RAIDA", 24, error);
+} else {
+console.error("Failed to get a respose from RAIDA" + 24);
+this.addSentryError("Failed to get any response from RAIDA", 24, error);
+}
+
+return null;
+});
+pms.push(pm24);
+
+  //}
   Promise.race(pms).then(r=>{
     firstReply = true;
     setTimeout(()=>{res()}, this.options.nexttimeout);})//next reply timeout
