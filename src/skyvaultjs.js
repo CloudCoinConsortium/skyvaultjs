@@ -3523,6 +3523,13 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
     let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
+        if(!this._activeServers.includes(rIdx)){
+          rv.raidaStatuses[rIdx] = "u";
+          rv.balancesPerRaida[rIdx] = null; //rv.denominations[rIdx] = null;
+
+          re++;
+          return;
+        }
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
           rv.balancesPerRaida[rIdx] = null;
@@ -3548,7 +3555,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         }
 let dView = new DataView(response);
 let status = dView.getUint8(2);
-        if (status == 251) {
+        if (status == 251|| status == 242) {
           rv.raidaStatuses[rIdx] = "f";
           rv.balancesPerRaida[rIdx] = null;
           //rv.denominations[rIdx] = null;
@@ -3556,10 +3563,10 @@ let status = dView.getUint8(2);
           return;
         }
 
-        if (status != 250) {
+        if (status != 250 && status != 241) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          //rv.denominations[rIdx] = null;
+          console.log("error: raida | code", rIdx, status);
           re++;
           return;
         }
@@ -5335,7 +5342,7 @@ rparams18 = params[raidaIdx18];
 rparams19 = params[raidaIdx19];
 rparams20 = params[raidaIdx20];
 rparams21 = params[raidaIdx21];
-rparams33 = params[raidaIdx22];
+rparams22 = params[raidaIdx22];
 rparams23 = params[raidaIdx23];
 rparams24 = params[raidaIdx24];
 } else {
