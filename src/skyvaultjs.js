@@ -52,10 +52,13 @@ class SkyVaultJS {
     , ...options}
 
     this._raidaServers = []
-    this._activeServers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
+    this._webSockets = []
+    this._activeServers = []
+    this._inactiveServers = []
     this._totalServers = 25
     this.highestrestime = 0
     this._generateServers()
+    this._initSockets()
     this._initAxios()
 
     this.__authenticResult = "authentic"
@@ -261,7 +264,7 @@ class SkyVaultJS {
 
   // Echo
   async apiEcho(callback = null) {
-    this._activeServers = []
+
     this.addBreadCrumbEntry("apiEcho")
 let ab = new ArrayBuffer(19 + 5)
 let d = new DataView(ab)
@@ -272,7 +275,7 @@ d.setUint8(13, 0xAB)// echo
 d.setUint8(15, 0x01)//udp number//udp number
 d.setUint8(22, 0x3e)
   d.setUint8(23, 0x3e) // Trailing chars
-
+await this.waitForSockets()
     let rqs = this._launchRequests("echo", ab, callback)
     let rv = {
       status: 'done',
@@ -292,7 +295,7 @@ d.setUint8(22, 0x3e)
         if (dView.getUint8(2) === 250){
           rv.serverStatuses[dView.getUint8(0)] = 1
           rv['onlineServers']++;
-          this._activeServers.push(dView.getUint8(0))
+          //this._activeServers.push(dView.getUint8(0))
         }
         else{
           rv.serverStatuses[dView.getUint8(0)] = 0
@@ -319,7 +322,7 @@ async  apiPown(params, callback = null) {
     let rqdata = this._formRequestData(params)
 
 
-
+await this.waitForSockets()
     // Launch Requests
     let rqs = this._launchRequests("multi_detect", rqdata, callback)
 
@@ -344,7 +347,7 @@ async  apiPown(params, callback = null) {
       let rqdata = this._formRequestData(params, false, 1)
 
 
-
+await this.waitForSockets()
       // Launch Requests
       let rqs = this._launchRequests("multi_detect", rqdata, callback)
 
@@ -369,7 +372,8 @@ async  apiPown(params, callback = null) {
       }
 
 
-          let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      let chcrc32 = this._crc32(challange,0,12)
 
 
           let rqdata = [];
@@ -395,9 +399,10 @@ async  apiPown(params, callback = null) {
             d.setUint8(15, 0x01); //udp number
             //body
 
-            for (let x = 0; x < 16; x++) {
-              d.setUint8(22 + x, challange[x]);
+            for (let x = 0; x < 12; x++) {
+              d.setUint8(22 + x, challange[x])
             }
+            d.setUint32(34, chcrc32)
 
             d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
 
@@ -414,6 +419,7 @@ async  apiPown(params, callback = null) {
 
     let a, e, f
     a = f = e = 0
+    await this.waitForSockets()
     let rqs = this._launchRequests("statements/delete", rqdata, callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
@@ -471,7 +477,8 @@ async  apiPown(params, callback = null) {
     if('rows' in params){
       num_rows = params['rows']
     }
-let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange,0,12)
 let guid = this._generatePan()
     let rqdata = []
     let ab, d;
@@ -488,9 +495,10 @@ let guid = this._generatePan()
         d.setUint8(13, 0xAB); // echo
         d.setUint8(15, 0x01);//udp number
         //body
-        for (let x = 0; x < 16; x++) {
-          d.setUint8(22 + x, challange[x]);
+        for (let x = 0; x < 12; x++) {
+          d.setUint8(22 + x, challange[x])
         }
+        d.setUint32(34, chcrc32)
         d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
         for (let x = 0; x < 16; x++) {
           d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
@@ -568,6 +576,7 @@ let guid = this._generatePan()
     e = a = f = n = 0
     let statements = {}
     let serverResponses = []
+    await this.waitForSockets()
     let rqs = this._launchRequests("statements/read", rqdata, callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
@@ -774,6 +783,7 @@ let data = new DataView(serverResponse, offset)
     let passed = 0
     let a, f, e
     a = f = e = 0
+    await this.waitForSockets()
     let rqs = this._launchRequests("statements/create", rqdata, 'GET', callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
@@ -991,7 +1001,7 @@ if(this.wsprotocol == "ws")
         tag: params.tag,
       })
     }
-
+await this.waitForSockets()
     let rqs = this._launchRequests("view_receipt", rqdata, 'GET', callback)
     let rv = {
       status : 'done',
@@ -1071,7 +1081,7 @@ if(this.wsprotocol == "ws")
       })
     }*/
     let rqdata = this._formRequestData([coin], false, 11)
-
+await this.waitForSockets()
     let rqs = this._launchRequests("get_ticket", rqdata, callback)
     let rv = {
       status : 'done',
@@ -2037,7 +2047,8 @@ while(!eof){
     let rqdata = []
     let memo = 'memo' in params ? params['memo'] : "Send"
     let from = "SkyVaultJS"
-
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange,0,12)
     let guid = this._generatePan()
     let times = new Date(Date.now());
     let tags = this._getObjectMemo(guid, memo, amount, from)
@@ -2067,6 +2078,10 @@ while(!eof){
         d.setUint8(12, 0xAB); // echo
         d.setUint8(13, 0xAB); // echo
         d.setUint8(15, 0x01);//udp number
+        for (let x = 0; x < 12; x++) {
+          d.setUint8(22 + x, challange[x])
+        }
+        d.setUint32(34, chcrc32)
         //body
         d.setUint32(38 + (j * 19), coin.sn << 8); //rqdata[i].sns.push(coin.sn)
 
@@ -2091,6 +2106,7 @@ while(!eof){
     }
 
     // Launch Requests
+    await this.waitForSockets()
     let rqs = this._launchRequests("send", rqdata, callback)
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       result.transaction_id = guid
@@ -2232,7 +2248,8 @@ while(!eof){
     */
 
     let rqdata = []
-    let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange,0,12)
     let nns = new Array(coinsToReceive.length)
     nns.fill(this.options.defaultCoinNn)
     let guid = this._generatePan();
@@ -2261,9 +2278,10 @@ while(!eof){
           d.setUint8(13, 0xAB); // echo
           d.setUint8(15, 0x01)//udp number; //udp number
           //body
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(22 + x, challange[x]);
+          for (let x = 0; x < 12; x++) {
+            d.setUint8(22 + x, challange[x])
           }
+          d.setUint32(34, chcrc32)
           d.setUint32(38, coin.sn << 8); //owner
 
           for (let x = 0; x < 16; x++) {
@@ -2292,6 +2310,7 @@ while(!eof){
       } // Launch Requests
 
       // Launch Requests
+      await this.waitForSockets()
       let rqs = this._launchRequests("receive", rqdata, callback)
 
       let coins = new Array(coinsToReceive.length)
@@ -2391,7 +2410,7 @@ while(!eof){
   			d.setUint8(ab.byteLength -2, 0x3e);
 			rqdata.push(ab)
 		}
-
+await this.waitForSockets()
     let response = await this._launchRequests("break_in_bank", rqdata, callback)
     let p = 0
     let rv = await this._parseMainPromise(response, 0, {}, response => {
@@ -2869,7 +2888,7 @@ while(!eof){
 
       servers.push(raidaIdx)
     }
-
+await this.waitForSockets()
     let pm = this._launchRequests("sync/fix_transfer", rqdata, 'GET', () => {}, servers)
 
     return pm
@@ -2885,7 +2904,8 @@ while(!eof){
         return this._getError("Invalid input data. Serial Numbers must be an array")
       }
 
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      let chcrc32 = this._crc32(challange,0,12)
       let rqdata = [];
       let ab, d;
       for (let i = 0; i < this._totalServers; i++) {
@@ -2899,9 +2919,10 @@ while(!eof){
           d.setUint8(13, 0xAB); // echo
           d.setUint8(15, 0x01); //udp number
                 //body
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(22 + x, challange[x]);
-          }
+                for (let x = 0; x < 12; x++) {
+                  d.setUint8(22 + x, challange[x])
+                }
+                d.setUint32(34, chcrc32)
           d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
           for (let x = 0; x < 16; x++) {
             d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
@@ -2913,6 +2934,7 @@ while(!eof){
           d.setUint8(ab.byteLength - 2, 0x3e);
           rqdata.push(ab)
         }
+        await this.waitForSockets()
         let pm = this._launchRequests("sync/fix_transfer", rqdata,  null, servers)
 
 
@@ -2973,7 +2995,8 @@ while(!eof){
     this.addBreadCrumbEntry("_doTransfer")
 let guid = this._generatePan()
 let times = new Date(Date.now())
-let challange = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+let chcrc32 = this._crc32(challange,0,12)
     let rqdata = []
 let ab, d
           for (let i = 0; i < this._totalServers; i++) {
@@ -2988,9 +3011,10 @@ let ab, d
               d.setUint8(12, 0xAB); // echo
               d.setUint8(13, 0xAB); // echo
               d.setUint8(15, 0x01)//udp number; //udp number
-              for (let x = 0; x < 16; x++) {
-                d.setUint8(22 + x, challange[x]);
+              for (let x = 0; x < 12; x++) {
+                d.setUint8(22 + x, challange[x])
               }
+              d.setUint32(34, chcrc32)
               d.setUint32(38, coin.sn << 8); //owner
 
               for (let x = 0; x < 16; x++) {
@@ -3017,6 +3041,7 @@ let ab, d
           }
 
     // Launch Requests
+    await this.waitForSockets()
     let rqs = this._launchRequests("transfer", rqdata, callback, iteration)
 
     let coins = new Array(coinsToSend.length)
@@ -3054,6 +3079,7 @@ let ab, d
   		}
 
     let nrv = { d1 : {}, d5 : {}, d25 : {}, d100 : {}}
+    await this.waitForSockets()
     let rqs = this._launchRequests("show_change", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, nrv, response => {
         if (response === "error" || response === "network")
@@ -3270,7 +3296,8 @@ return rv
     //let url = this.options.freeCoinURL
     let ab, d;
     let rqdata = [];
-let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange,0,12)
     for (let i = 0; i < this._totalServers; i++) {
       ab = new ArrayBuffer(bufferlength);
       d = new DataView(ab);
@@ -3289,9 +3316,10 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
       d.setUint8(13, 0xAB); // echo
 
       d.setUint8(15, 0x01); //udp number;//udp number
-      for (let x = 0; x < 16; x++) {
-        d.setUint8(22 + x, challange[x]);
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
       }
+      d.setUint32(34, chcrc32)
       d.setUint32(38, sn << 8);
       if(an != null){
         for (let x = 0; x < 16; x++) {
@@ -3313,6 +3341,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
       }
     };
     let e, a, n = 0;
+    await this.waitForSockets()
     let rqs = await this._launchRequests("free_id", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error") {
@@ -3438,6 +3467,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
     let a, f, e
     a = f = e = 0
+    await this.waitForSockets()
     let rqs = this._launchRequests("recover_by_email", rqdata, 'GET', callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
@@ -3472,6 +3502,8 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
     if (!coin) return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing");
     if (!this._validateCoin(coin)) return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin");
     let rqdata = [];
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange,0,12)
 /*
     for (let i = 0; i < this._totalServers; i++) {
       rqdata.push({
@@ -3494,6 +3526,10 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 			d.setUint8(12, 0xAB);// echo
 			d.setUint8(13, 0xAB);// echo
 			d.setUint8(15, 0x01)//udp number;//udp number
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
 			d.setUint32(38, coin.sn<<8)
 			for (let x = 0; x < 16; x++) {
 				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
@@ -3520,7 +3556,7 @@ let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
     let balances = {};
     let ra, re, rf;
     ra = re = rf = 0;
-
+await this.waitForSockets()
     let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if(!this._activeServers.includes(rIdx)){
@@ -3566,7 +3602,7 @@ let status = dView.getUint8(2);
         if (status != 250 && status != 241) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          console.log("error: raida | code", rIdx, status);
+          console.log("error in raida", rIdx,", error code:", status);
           re++;
           return;
         }
@@ -3798,6 +3834,7 @@ let status = dView.getUint8(2);
 
 
     let results = {}
+    await this.waitForSockets()
     let rqs = this._launchRequests("nft/has_nft", rqdata, 'GET', callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
@@ -4046,6 +4083,7 @@ let status = dView.getUint8(2);
 
     let a, f, e
     a = f = e = 0
+    await this.waitForSockets()
     let rqs = this._launchRequests("nft/insert", rqdata, 'POST', callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
@@ -4102,6 +4140,7 @@ let status = dView.getUint8(2);
 
     let a, f, e
     a = f = e = 0
+    await this.waitForSockets()
     let rqs = this._launchRequests("nft/delete", rqdata, 'GET', callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
@@ -4161,7 +4200,7 @@ let status = dView.getUint8(2);
     let mparts = []
     for (let i = 0; i < this._totalServers; i++)
         mparts[i] = null
-
+await this.waitForSockets()
     let rqs = this._launchRequests("nft/read", rqdata, 'GET', callback)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
@@ -4354,7 +4393,7 @@ let status = dView.getUint8(2);
       code: SkyVaultJS.ERR_NO_ERROR,
       balancesPerRaida: []
     }
-
+await this.waitForSockets()
     let rqs = this._launchRequests("show", rqdata, 'GET', callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error")
@@ -4512,7 +4551,8 @@ let status = dView.getUint8(2);
 
     async _getCoins(coin, callback=null){//ByDenomination(coin, denomination, callback) {
       let rqdata = []
-
+      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      let chcrc32 = this._crc32(challange,0,12)
       // Assemble input data for each Raida Server
       let ab, d;
   		for (let i = 0; i < this._totalServers; i++) {
@@ -4528,6 +4568,10 @@ let status = dView.getUint8(2);
   			d.setUint8(15, 0x01)//udp number;//udp number
         d.setUint8(ab.byteLength -3, 250)//biggest returned denomination
   			d.setUint32(38, coin.sn<<8)
+        for (let x = 0; x < 12; x++) {
+          d.setUint8(22 + x, challange[x])
+        }
+        d.setUint32(34, chcrc32)
   			for (let x = 0; x < 16; x++) {
   				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
   			}
@@ -4544,6 +4588,7 @@ let status = dView.getUint8(2);
       let skipRaidas = []
       let a, f, e
       a = f = e = 0
+      await this.waitForSockets()
       let rqs = this._launchRequests("show", rqdata, callback).then(response => {
         this._parseMainPromise(response, 0, rv, (response, rIdx) => {
           if (response == "network" || response == "error") {
@@ -4633,13 +4678,15 @@ let status = dView.getUint8(2);
     //triad = this._trustedTriads[raidaIdx][corner]
 
     rqdata = this._formRequestData(coins, false, 11);
+    await this.waitForSockets()
     rqs = this._launchRequests("multi_get_ticket", rqdata, callback);
     resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
       if (a > 12) return this.__authenticResult;
       return this.__counterfeitResult;
     });
 
-    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange,0,12)
     let ab = new ArrayBuffer(24 + 16 + 4 * 25 + 19 * coins.length);
     let d = new DataView(ab);
     d.setUint8(ab.byteLength - 1, 0x3e);
@@ -4661,9 +4708,10 @@ let status = dView.getUint8(2);
 
     d.setUint8(15, 0x01); //udp number;//udp number
 
-    for (let x = 0; x < 16; x++) {
-      d.setUint8(22 + x, challange[x]);
+    for (let x = 0; x < 12; x++) {
+      d.setUint8(22 + x, challange[x])
     }
+    d.setUint32(34, chcrc32)
 
     let i = 0;
 
@@ -4684,7 +4732,7 @@ let status = dView.getUint8(2);
     } // exec fix fracked
 
 //console.log(d);
-
+await this.waitForSockets()
     rqs = this._launchRequests("multi_fix", ab, callback, [raidaIdx]);
     resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
       if (a == 1 && c == 0 && e == 0) return this.__authenticResult;
@@ -5185,43 +5233,34 @@ let status = dView.getUint8(2);
     }
   }
 
-    _wsConnect(url, data, i, timeout = 10000, st) {
+    _wsConnect(url, data, i, st) {
       let thiz = this
-      let reject = true;
       let dv = new DataView(data);
-      if(this._activeServers.includes(i))
-        reject = false;
-        if(!reject || dv.getUint8(5) == 0x04){
-      return new Promise(function (res, rej) {
-        let socket;
-        //setTimeout(() => rej('timeout'), timeout);
-        if (_isBrowser) socket = new WebSocket(url);else {
-          socket = new _ws(url);
-        }
-        socket.binaryType = "arraybuffer";
+          if (this._webSockets[i] != null) {
+            return new Promise(function (res, rej) {
 
-        socket.onopen = e => {
-          console.log("sending ", i, Date.now() - st);
-          dv.setUint8(2, i);
-          socket.send(data);
-        };
 
-        socket.onmessage = e => {
-          let restime = Date.now() - st;
-          console.log("recieving ", i, restime);
-          if(restime > thiz.highestrestime)
-          thiz.highestrestime = restime;
-          res(e);
-          socket.close(1000);
-        };
+              thiz._webSockets[i].binaryType = "arraybuffer";
+              dv.setUint8(2, i);
+              thiz._webSockets[i].send(data);
 
-        socket.onerror = e => {
-          console.log("ws error: ", e.message);
-          rej(e);
-          socket.close();
-        };
-      });
-    }else{
+
+              thiz._webSockets[i].onmessage = e => {
+                let restime = Date.now() - st;
+                //console.log("recieving ", i, restime);
+                if(restime > thiz.highestrestime)
+                thiz.highestrestime = restime;
+                res(e);
+                //socket.close(1000);
+              };
+
+              thiz._webSockets[i].onerror = e => {
+                console.log("ws error: ", e.message);
+                rej(e);
+                //socket.close();
+              };
+            });
+          }else{
       return new Promise((res, rej)=>{rej()});
     }
 
@@ -5247,10 +5286,12 @@ let status = dView.getUint8(2);
       }
 
   let tm = new Promise((res, rej)=>{
+    /*
   setTimeout(()=>{
     if(!firstReply)
     rej("First Reply Timeout");
   },this.options.timeout);
+  */
   let st = Date.now();
   //for (let i = 0; i < iteratedServers.length; i++) {
 
@@ -5373,31 +5414,31 @@ rparams23 = params;
 rparams24 = params;
 }
 
-    pm0 = this._wsConnect(rq0, rparams0, raidaIdx0, options.timeout, st);
-pm1 = this._wsConnect(rq1, rparams1, raidaIdx1, options.timeout, st);
-pm2 = this._wsConnect(rq2, rparams2, raidaIdx2, options.timeout, st);
-pm3 = this._wsConnect(rq3, rparams3, raidaIdx3, options.timeout, st);
-pm4 = this._wsConnect(rq4, rparams4, raidaIdx4, options.timeout, st);
-pm5 = this._wsConnect(rq5, rparams5, raidaIdx5, options.timeout, st);
-pm6 = this._wsConnect(rq6, rparams6, raidaIdx6, options.timeout, st);
-pm7 = this._wsConnect(rq7, rparams7, raidaIdx7, options.timeout, st);
-pm8 = this._wsConnect(rq8, rparams8, raidaIdx8, options.timeout, st);
-pm9 = this._wsConnect(rq9, rparams9, raidaIdx9, options.timeout, st);
-pm10 = this._wsConnect(rq10, rparams10, raidaIdx10, options.timeout, st);
-pm11 = this._wsConnect(rq11, rparams11, raidaIdx11, options.timeout, st);
-pm12 = this._wsConnect(rq12, rparams12, raidaIdx12, options.timeout, st);
-pm13 = this._wsConnect(rq13, rparams13, raidaIdx13, options.timeout, st);
-pm14 = this._wsConnect(rq14, rparams14, raidaIdx14, options.timeout, st);
-pm15 = this._wsConnect(rq15, rparams15, raidaIdx15, options.timeout, st);
-pm16 = this._wsConnect(rq16, rparams16, raidaIdx16, options.timeout, st);
-pm17 = this._wsConnect(rq17, rparams17, raidaIdx17, options.timeout, st);
-pm18 = this._wsConnect(rq18, rparams18, raidaIdx18, options.timeout, st);
-pm19 = this._wsConnect(rq19, rparams19, raidaIdx19, options.timeout, st);
-pm20 = this._wsConnect(rq20, rparams20, raidaIdx20, options.timeout, st);
-pm21 = this._wsConnect(rq21, rparams21, raidaIdx21, options.timeout, st);
-pm22 = this._wsConnect(rq22, rparams22, raidaIdx22, options.timeout, st);
-pm23 = this._wsConnect(rq23, rparams23, raidaIdx23, options.timeout, st);
-pm24 = this._wsConnect(rq24, rparams24, raidaIdx24, options.timeout, st);
+    pm0 = this._wsConnect(rq0, rparams0, raidaIdx0, st);
+pm1 = this._wsConnect(rq1, rparams1, raidaIdx1, st);
+pm2 = this._wsConnect(rq2, rparams2, raidaIdx2, st);
+pm3 = this._wsConnect(rq3, rparams3, raidaIdx3, st);
+pm4 = this._wsConnect(rq4, rparams4, raidaIdx4, st);
+pm5 = this._wsConnect(rq5, rparams5, raidaIdx5, st);
+pm6 = this._wsConnect(rq6, rparams6, raidaIdx6, st);
+pm7 = this._wsConnect(rq7, rparams7, raidaIdx7, st);
+pm8 = this._wsConnect(rq8, rparams8, raidaIdx8, st);
+pm9 = this._wsConnect(rq9, rparams9, raidaIdx9, st);
+pm10 = this._wsConnect(rq10, rparams10, raidaIdx10, st);
+pm11 = this._wsConnect(rq11, rparams11, raidaIdx11, st);
+pm12 = this._wsConnect(rq12, rparams12, raidaIdx12, st);
+pm13 = this._wsConnect(rq13, rparams13, raidaIdx13, st);
+pm14 = this._wsConnect(rq14, rparams14, raidaIdx14, st);
+pm15 = this._wsConnect(rq15, rparams15, raidaIdx15, st);
+pm16 = this._wsConnect(rq16, rparams16, raidaIdx16, st);
+pm17 = this._wsConnect(rq17, rparams17, raidaIdx17, st);
+pm18 = this._wsConnect(rq18, rparams18, raidaIdx18, st);
+pm19 = this._wsConnect(rq19, rparams19, raidaIdx19, st);
+pm20 = this._wsConnect(rq20, rparams20, raidaIdx20, st);
+pm21 = this._wsConnect(rq21, rparams21, raidaIdx21, st);
+pm22 = this._wsConnect(rq22, rparams22, raidaIdx22, st);
+pm23 = this._wsConnect(rq23, rparams23, raidaIdx23, st);
+pm24 = this._wsConnect(rq24, rparams24, raidaIdx24, st);
 
 pm0.then(response => {
 if (callback != null) callback(raidaIdx0, url, data);
@@ -5934,6 +5975,60 @@ this.options.nexttimeout = this.highestrestime + 1000;
     this._raidaServers[24] = this.options.wsprotocol + "://147.182.249.132:8888";
   }
   }
+
+
+   _initSockets(){
+      let st = Date.now();
+
+      for(let i = 0; i < this._totalServers; i++){
+        let socket;
+         if (_isBrowser) socket = new WebSocket(this._raidaServers[i]);else {
+          socket = new _ws(this._raidaServers[i]);
+        }
+        socket.onopen = e =>{
+          console.log("initializing raida", i,", milliseconds:", Date.now() - st);
+          this._webSockets[i] = socket;
+          this._activeServers.push(i);
+        }
+
+        socket.onerror = e => {
+          console.log("ws error: ", e.message);
+          if(!this._inactiveServers.includes(i))
+          {this._inactiveServers.push(i);}
+          socket.close();
+        };
+      }
+      setTimeout(()=>{
+        for(let i = 0; i < this._totalServers; i++){
+          if(!this._activeServers.includes(i) && !this._inactiveServers.includes(i)){
+            this._inactiveServers.push(i);
+          }
+        }
+      }, 10000);
+    }
+
+    async waitForSockets(){
+      if(this._activeServers.length + this._inactiveServers.length == this._totalServers) return;
+       let ready = 0;
+       while(ready == 0){
+         await new Promise((resolve) =>{
+           setTimeout(() => resolve(this._activeServers.length + this._inactiveServers.length == this._totalServers ? 1:0), 500);
+         }).then(res => ready = res);
+       }
+    }
+
+
+
+    closeSockets(){
+      for(let i = 0; i < this._webSockets.length; i++){
+        if(this._webSockets[i] != null){
+          //console.log("closing ", i);
+          this._webSockets[i].close(1000);
+        }
+
+      }
+    }
+
 
   // Check if the coin is valid
   _validateCoin(coin) {
