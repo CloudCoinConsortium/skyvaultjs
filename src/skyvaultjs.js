@@ -3609,7 +3609,7 @@ let status = dView.getUint8(2);
 
         rv.raidaStatuses[rIdx] = "p";
         let b = 0
-        if(response.byteLength > 12)
+        if(response.byteLength == 16)
         b = dView.getUint32(12);
         rv.balancesPerRaida[rIdx] = b;
         /*
@@ -5235,8 +5235,9 @@ await this.waitForSockets()
 
     _wsConnect(url, data, i, st) {
       let thiz = this
-      let dv = new DataView(data);
-          if (this._webSockets[i] != null) {
+
+          if (this._webSockets[i] != null && data != null) {
+            let dv = new DataView(data)
             return new Promise(function (res, rej) {
 
 
