@@ -310,6 +310,141 @@ await this.waitForSockets()
     return mainPromise
   }
 
+  async apiFind(params, callback = null) {
+    let coins = []
+    if (!Array.isArray(params.coins)) {
+      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Parameter 'coins' needs to be an array")
+    }
+
+    for (let k in params.coins) {
+      let coin = params[k]
+
+      if (!this._validateCoin(coin))
+        continue
+
+        if (!('an' in coin))
+          continue
+
+          if (!('pan' in coin))
+            continue
+
+
+      coins.push(coin)
+    }
+
+      if (coins.length < 1) {
+        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
+      }
+
+
+      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      let chcrc32 = this._crc32(challange,0,12)
+
+    this.addBreadCrumbEntry("apiEcho")
+    let ab, d
+    let rqdata = []
+    for (let i = 0; i < this._totalServers; i++) {
+  ab = new ArrayBuffer(24 + 16 + 35*coins.length)
+  d = new DataView(ab)
+  d.setUint8(ab.byteLength - 1, 0x3e);
+  d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+
+  d.setUint8(2, i);
+  d.setUint8(5, 0x02)//command find
+  /*
+  if(coin.sn >= 26000 && coin.sn <= 100000){
+  d.setUint8(8, 0x00); //coin id
+  }else{
+  d.setUint8(8, 0x01); //coin id
+  */
+  d.setUint8(8, 0x01)//coin id
+  d.setUint8(12, 0xAB)// echo
+  d.setUint8(13, 0xAB)// echo
+  d.setUint8(15, 0x01)//udp number//udp number
+  d.setUint8(22, 0x3e)
+  d.setUint8(23, 0x3e) // Trailing chars
+  for (let x = 0; x < 12; x++) {
+    d.setUint8(22 + x, challange[x])
+  }
+  d.setUint32(34, chcrc32)
+  coins.forEach((coin, j) => {
+    d.setUint32(38 + j * 35, coin.sn << 8)
+    for (let x = 0; x < 16; x++) {
+      d.setUint8(41 + 35 * j + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+    }
+    for (let y = 0; y < 16; y++) {
+      d.setUint8(57 + 35 * j + y, parseInt(coin.pan[i].substr(x * 2, 2), 16));
+    }
+  })
+
+  rqdata.push(ab)
+}
+
+  await this.waitForSockets()
+    let rqs = this._launchRequests("find", rqdata, callback)
+    let rv = {
+      status: 'done',
+      code : SkyVaultJS.ERR_NO_ERROR,
+      recovered: []
+
+    }
+    let rcoins = {}; // Setup the return hash value
+
+    for (let i = 0; i < coins.length; i++) {
+      let sn = coins[i].sn;
+      rcoins[sn] = {
+        sn: sn,
+        errors: 0,
+        counterfeit: 0,
+        authentic: 0,
+        pownstring: "",
+        result: "unknown"
+      }
+    }
+
+
+
+    let mainPromise = rqs.then(response => {
+      this._parseMainPromise(response, 0, rv, serverResponse => {
+
+        if (serverResponse === "error") {
+          Object.keys(rcoins).map(sn => {
+            rcoins[sn].errors++
+            rcoins[sn].pownstring += "e"
+          })
+          return
+        }
+
+        if (serverResponse === "network") {
+          Object.keys(rcoins).map(sn => {
+            rcoins[sn].errors++
+            rcoins[sn].pownstring += "n"
+          });
+          return
+        }
+        let sr = new DataView(serverResponse)
+        let status = sr.getUint8(2)
+
+        if (status < 208 || status > 211) {
+          for (let i = 0; i < coins.length; i++) {
+            let sn = coins[i].sn
+            rcoins[sn].errors++
+            rcoins[sn].pownstring += "e"
+          }
+
+          return
+        }
+
+      })
+
+      this.addBreadCrumbReturn("apiEcho", rv)
+
+      return rv
+    })
+
+    return mainPromise
+  }
+
   // Detect
 async  apiPown(params, callback = null) {
     this.addBreadCrumbEntry("apiDetect", params)
@@ -2837,6 +2972,7 @@ await this.waitForSockets()
     let localCoinsToSend
     let b = 0
     let response = {}
+    /*
     for (; b < iterations; b++) {
       from = b * batch
       let tol = from + batch
@@ -2853,7 +2989,8 @@ await this.waitForSockets()
       response = this._mergeResponse(response, lr)
 
     }
-
+    */
+response = await this._doTransfer(coin, to, tags, coinsToSend, callback)
     // Assemble input data for each Raida Server
     //response.changeCoinSent = changeRequired
     response.code = SkyVaultJS.ERR_NO_ERROR
@@ -2991,7 +3128,7 @@ await this.waitForSockets()
   }
 
   // Doing actual transfer
-  async _doTransfer(coin, to, tags, coinsToSend, callback, iteration) {
+  async _doTransfer(coin, to, tags, coinsToSend, callback, iteration = null) {
     this.addBreadCrumbEntry("_doTransfer")
 let guid = this._generatePan()
 let times = new Date(Date.now())
