@@ -2231,7 +2231,7 @@ while(!eof){
       }//transaction guid
 
       d.setUint8(57 + amountNotes * 19, times.getUTCFullYear() - 2000)//year
-      d.setUint8(58 + amountNotes * 19, times.getUTCMonth())//month
+      d.setUint8(58 + amountNotes * 19, times.getUTCMonth() +1 )//month
       d.setUint8(59 + amountNotes * 19, times.getUTCDate())//day
       d.setUint8(60 + amountNotes * 19, times.getUTCHours())//hour
       d.setUint8(61 + amountNotes * 19, times.getUTCMinutes())//minute
@@ -2434,7 +2434,7 @@ while(!eof){
             d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
           } //transaction guid
           d.setUint8(89 + coinsToReceive.length * 3, times.getUTCFullYear() - 2000)//year
-          d.setUint8(90 + coinsToReceive.length * 3, times.getUTCMonth())//month
+          d.setUint8(90 + coinsToReceive.length * 3, times.getUTCMonth() + 1)//month
           d.setUint8(91 + coinsToReceive.length * 3, times.getUTCDate())//day
           d.setUint8(92 + coinsToReceive.length * 3, times.getUTCHours())//hour
           d.setUint8(93 + coinsToReceive.length * 3, times.getUTCMinutes())//minute
@@ -3074,9 +3074,13 @@ await this.waitForSockets()
         await this.waitForSockets()
         let pm = this._launchRequests("sync/fix_transfer", rqdata,  null, servers)
 
+        let modestring = "add";
+        if(mode == 2)
+        modestring = "delete";
 
             let rv = {
               status: 'done',
+              mode: modestring,
               code: SkyVaultJS.ERR_NO_ERROR,
               res_status_code: 0,
               details: []
@@ -3166,7 +3170,7 @@ let ab, d
                 d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
               } //transaction guid
               d.setUint8(76 + coinsToSend.length * 3, times.getUTCFullYear() - 2000)//year
-              d.setUint8(77 + coinsToSend.length * 3, times.getUTCMonth())//month
+              d.setUint8(77 + coinsToSend.length * 3, times.getUTCMonth() + 1)//month
               d.setUint8(78 + coinsToSend.length * 3, times.getUTCDate())//day
               d.setUint8(79 + coinsToSend.length * 3, times.getUTCHours())//hour
               d.setUint8(80 + coinsToSend.length * 3, times.getUTCMinutes())//minute
@@ -3364,7 +3368,7 @@ if (showcoin.code != 0) {
   return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit");
 }
 
-
+let details = []
   for(let sn in showcoin.coinsPerRaida){
 let nocount = 0;
 let yescount = 0;
@@ -3380,9 +3384,9 @@ showcoin.coinsPerRaida[sn].forEach((e, i)=>{
   }
 })
     if(nocount > 0 && nocount < 10)
-      this._syncOwnersAddDelete(coin, [sn], l, 0)
+      details.push(await this._syncOwnersAddDelete(coin, [sn], l, 0))
     if(yescount > 0  && yescount < 10)
-      this._syncOwnersAddDelete(coin, [sn], g, 2)
+      details.push(await this._syncOwnersAddDelete(coin, [sn], g, 2))
 }
 
 
@@ -3410,7 +3414,8 @@ this._syncOwnersAddDelete(coin, sns, [g], 2)
 
 let rv = {
   "status": "done",
-  "code": 0
+  "code": 0,
+  "details":details
 }
 return rv
   }
@@ -3812,7 +3817,7 @@ let status = dView.getUint8(2);
       rv.balances = balances;
       rv.raidaStatuses = rv.raidaStatuses.join("");
       let thiz = this;
-
+/*
       if (Object.keys(balances).length > 1) {
         let fnpm = async function () {
           let response = await thiz.apiShowCoins(coin, callback);
@@ -3863,7 +3868,7 @@ let status = dView.getUint8(2);
           return rv;
         });
         return fpm;
-      }
+      }*/
 
       this.addBreadCrumbReturn("apiShowBalance", rv);
       return rv;
@@ -4748,6 +4753,7 @@ await this.waitForSockets()
           }
 
           if (status != 250) {
+            console.log("get coin error code:", status, "on raida", rIdx);
             skipRaidas.push(rIdx)
             e++
             return
@@ -4755,7 +4761,7 @@ await this.waitForSockets()
 
           a++
           let coinsplit = new DataView(response, 12)
-          let amount = coinsplit.byteLength/3
+          let amount = Math.floor(coinsplit.byteLength / 3)
           let coins = new ArrayBuffer(coinsplit.byteLength + 1)
           let coinsView = new DataView(coins)
           for(let x = 0; x < coins.byteLength -1; x++)
