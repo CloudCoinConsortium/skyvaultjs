@@ -1531,6 +1531,8 @@ await this.waitForSockets()
     let cardNumber = params['cardnumber']
     let cvv = params['cvv']
     let username = params['username']
+    console.log("using credentials: number:", cardNumber, "cvv:", cvv, "username", username);
+
     if (!this._validateCard(cardNumber, cvv))
       return this._getError("Invalid Card")
 
@@ -2415,7 +2417,7 @@ while(!eof){
         }, 500);
       });
       return rv;
-    } 
+    }
 
   // Receive
   async apiReceive(params, callback = null) {
@@ -3479,10 +3481,14 @@ showcoin.coinsPerRaida[sn].forEach((e, i)=>{
     g.push(i)
   }
 })
-    if(nocount > 0 && nocount < 10)
-      details.push(await this._syncOwnersAddDelete(coin, [sn], l, 0))
-    if(yescount > 0  && yescount < 10)
-      details.push(await this._syncOwnersAddDelete(coin, [sn], g, 2))
+if (nocount > 0 && nocount < 10){
+  console.log("adding ", sn, "to coin", coin.sn);
+  details.push(await this._syncOwnersAddDelete(coin, [sn], l, 0));
+}
+if (yescount > 0 && yescount < 10){
+  console.log("deleting ", sn, "to coin", coin.sn);
+  details.push(await this._syncOwnersAddDelete(coin, [sn], g, 2));
+}
 }
 
 
@@ -3774,7 +3780,7 @@ return rv
 			}
 			rqdata.push(ab)
 		}
-
+console.log("sending balance request", rqdata);
     let rv = {
       code: SkyVaultJS.ERR_NO_ERROR,
       balances: [],
@@ -3949,22 +3955,22 @@ let status = dView.getUint8(2);
 
         return fnpm;
       }
-
+*/
       if (needFix) {
         rv.triedToFix = true;
         coin.pownstring = rv.raidaStatuses;
         coin.result = this.__frackedResult;
         let fpm = this.apiFixfracked([coin], callback).then(response => {
-          if (response.status != 'done') return rv;
+          //if (response.status != 'done') return rv;
 
-          if (response.fixedNotes == 1) {
-            rv.fixedCoin = true;
-          }
+        //  if (response.fixedNotes == 1) {
+          //  rv.fixedCoin = true;
+          //}
 
-          return rv;
+          //return rv;
         });
-        return fpm;
-      }*/
+      //  return fpm;
+      }
 
       this.addBreadCrumbReturn("apiShowBalance", rv);
       return rv;
@@ -4804,7 +4810,7 @@ await this.waitForSockets()
   			d.setUint8(12, 0xAB);// echo
   			d.setUint8(13, 0xAB);// echo
   			d.setUint8(15, 0x01)//udp number;//udp number
-        d.setUint8(ab.byteLength -3, 250)//biggest returned denomination
+        d.setUint8(ab.byteLength -3, 1)//biggest returned denomination
   			d.setUint32(38, coin.sn<<8)
         for (let x = 0; x < 12; x++) {
           d.setUint8(22 + x, challange[x])
@@ -5009,7 +5015,9 @@ await this.waitForSockets()
     else {
       bodylength = 19
     }
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
+    let chcrc32 = this._crc32(challange, 0, 12);
     // Assemble input data for each Raida Server
     for (let i = 0; i < this._totalServers; i++) {
       let ab = new ArrayBuffer(35 + (bodylength*amount) +5)
@@ -5017,6 +5025,11 @@ await this.waitForSockets()
       d.setUint8(ab.byteLength -1, 0x3e)
 				d.setUint8(ab.byteLength -2, 0x3e) // Trailing chars
       //rqdata.push(ab)
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x]);
+      }
+
+      d.setUint32(34, chcrc32);
       for (let j = 0; j < amount; j++) {
         let coin = params[j]
         if ('an' in coin) {
