@@ -2719,9 +2719,9 @@ await this.waitForSockets()
     }
 
     let meta = ""
-    meta += "from = \"" + from + "\"\n"
-    meta += "message = \"" + memo + "\"\n"
-    meta = btoa(meta)
+    //meta += "sender_address = \"" + from + "\"\n"
+    meta += "memo = \"" + memo + "\"\n"
+    //meta = btoa(meta)
 
     params.memo = guid
 
@@ -2733,8 +2733,8 @@ await this.waitForSockets()
       let rAx = axios.create()
       let mParams = {
         'merchant_skywallet' : merchant_address,
-        'sender_skywallet': sender_address,
-        'meta' : meta,
+        'sender_address': sender_address,
+        'memo' : meta,
         'guid' : guid
       }
       let options = {
@@ -3183,24 +3183,50 @@ await this.waitForSockets()
               res_status_code: 0,
               details: []
             };
+            let needFix = false;
+            let pownstring = [];
             let mainPromise = pm.then(response => {
-              this._parseMainPromise(response, 0, rv, serverResponse => {
+              this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
                 if (serverResponse === "error" || serverResponse === "network"){
                   rv.status = 'error'
                   rv.code = SkyVaultJS.ERR_HAS_ERROR
+                  pownstring[i] = "e"
                   return;
                 }
                 let dView = new DataView(serverResponse);
 
                 rv.res_status_code = dView.getUint8(2)
-                if (dView.getUint8(2) != 250 && dView.getUint8(2) != 241) {
-                  rv.code = SkyVaultJS.ERR_HAS_ERROR
+                if(dView.getUint8(2) == 64){
+                  rv.status = "failed authentication (fracked)";
+                  rv.code = SkyVaultJS.ERR_DETECT_FAILED;
+                  pownstring[i] = "f";
+                  needFix = true;
+                  return;
                 }
-              });
 
-              this.addBreadCrumbReturn("apiFixTransfer", rv);
+                if (dView.getUint8(2) != 250 && dView.getUint8(2) != 241) {
+                  rv.status = "error";
+                  rv.code = SkyVaultJS.ERR_HAS_ERROR;
+                  pownstring[i] = "e";
+                  needFix = true;
+                  return;
+                }
+                pownstring[i] = "p";
+              });
+              if (needFix) {
+                for(let p = 0; p < 25; p++){
+                  if(pownstring[p] == null)
+                  pownstring[p] = "p";
+                }
+                pownstring = pownstring.join("");
+                coin.pownstring = pownstring;
+                coin.result = this.__frackedResult;
+                let fpm = this.apiFixfracked([coin])
+              }
+              this.addBreadCrumbReturn("apiFixTransfer", rv)
               return rv;
-            });
+
+          })
             return mainPromise;
 
   }
@@ -3850,6 +3876,13 @@ let status = dView.getUint8(2);
           re++;
           return;
         }
+        if (response.byteLength != 16) {
+          rv.raidaStatuses[rIdx] = "f";
+          rv.balancesPerRaida[rIdx] = 0; //rv.denominations[rIdx] = null;
+
+          rf++;
+          return;
+        }
 
         rv.raidaStatuses[rIdx] = "p";
         let b = 0
@@ -3960,15 +3993,7 @@ let status = dView.getUint8(2);
         rv.triedToFix = true;
         coin.pownstring = rv.raidaStatuses;
         coin.result = this.__frackedResult;
-        let fpm = this.apiFixfracked([coin], callback).then(response => {
-          //if (response.status != 'done') return rv;
-
-        //  if (response.fixedNotes == 1) {
-          //  rv.fixedCoin = true;
-          //}
-
-          //return rv;
-        });
+        let fpm = this.apiFixfracked([coin])
       //  return fpm;
       }
 
