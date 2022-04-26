@@ -1,14 +1,9 @@
 import axios from 'axios'
 import md5 from 'js-md5'
 var _ws = require('ws')
-import qs from 'qs'
 import CryptoJS from 'crypto-js'
 
 
-import * as Sentry from "@sentry/browser";
-import { Integrations } from "@sentry/tracing";
-
-import {version} from '../package.json';
 
 import allSettled from 'promise.allsettled'
 
@@ -22,15 +17,14 @@ class SkyVaultJS {
   // Contrustor
   constructor(options) {
     this.options = {
-      domain : "cloudcoin.global",
-      prefix : "raida",
+      domain: "cloudcoin.global",
+      prefix: "raida",
       protocol: "https",
       wsprotocol: "wss",
       timeout: 10000, // ms
-      nexttimeout:5000,
+      nexttimeout: 5000,
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
-      changeMakerId: 2,
       debug: false,
       defaultRaidaForQuery: 7,
       defaultRaidaForBackupQuery: 14,
@@ -40,23 +34,20 @@ class SkyVaultJS {
       maxCoinsPerIteraiton: 200,
       minPasswordLength: 8,
       memoMetadataSeparator: "*",
-      nftMetadataSeparator: "*",
       minPassedNumToBeAuthentic: 14,
       maxFailedNumToBeCounterfeit: 12,
       syncThreshold: 13,
-      freeCoinURL: "https://cloudcoin.global/freecoin.php",
-      maxNFTSize: 6000000,
-      billpayKey: "billpay",
       urlCardTemplate: "https://cloudcoinconsortium.com/img/card.png",
-      sentryDSN: null
-    , ...options}
+      ...options
+    }
 
+    this.pmall = null
     this._raidaServers = []
     this._webSockets = []
-    this._activeServers = []
-    this._inactiveServers = []
+    this._activeServers = {}
     this._totalServers = 25
     this.highestrestime = 0
+
     this._generateServers()
     this._initSockets()
     this._initAxios()
@@ -66,166 +57,12 @@ class SkyVaultJS {
     this.__counterfeitResult = "counterfeit"
     this.__errorResult = "error"
 
-    this._initNeighbours()
-
     this._crcTable = null
 
     this._rarr = {}
-
-    this.requestId = this._generatePan()
-
-    if (this.options.sentryDSN)
-      this.initSentry()
-
   }
 
 
-
-  // Init Sentry
-  initSentry() {
-    Sentry.init({
-      dsn: this.options.sentryDSN,
-      integrations: [
-        new Integrations.BrowserTracing({
-          tracingOrigins: ["localhost", /^\//, /raida.+\.cloudcoin\.global/]
-        }),
-      ],
-      release: "skyvaultjs@" + version,
-      normalizeDepth: 10,
-      sendDefaultPii: true,
-      environment: "production",
-      maxBreadcrumbs: 2000,
-      autoSessionTracking: true,
-      beforeBreadcrumb (breadcrumb, hint) {
-        if (breadcrumb.category === 'console')
-          return null
-
-        if (breadcrumb.category === 'xhr') {
-          breadcrumb.data.responseText = hint.xhr.responseText
-        }
-        return breadcrumb;
-      },
-
-      beforeSend(event, hint) {
-        return event
-      },
-
-      tracesSampleRate: 1.0
-    })
-
-    let rqId = this.requestId
-    Sentry.configureScope(function(scope) {
-      scope.setTag("raida", "empty")
-      scope.setTag("requestID", rqId)
-    })
-
-
-    Sentry.setContext("Request", {
-      "raidaJSRequestID" : rqId
-    })
-
-
-    /*
-    Sentry.withScope(function(scope) {
-      console.log("CAPTURE")
-      scope.setTag("raida", "14")
-      scope.setLevel("warning")
-      Sentry.captureException(new Error("my error"))
-    })
-
-      Sentry.captureMessage("Hello")
-    */
-  }
-
-  addBreadCrumb(msg, data = null) {
-    if (!this.options.sentryDSN)
-      return
-
-    Sentry.addBreadcrumb({
-      category: 'custom',
-      message: msg,
-      level: 'info',
-      type: 'user',
-      data: {'rjsdata' : JSON.stringify(data) }
-    });
-  }
-
-  addBreadCrumbEntry(msg, data = null) {
-    if (!this.options.sentryDSN)
-      return
-
-    Sentry.addBreadcrumb({
-      category: 'entry',
-      message: msg,
-      level: 'info',
-      type: 'user',
-      data: {'rjsdata' : JSON.stringify(data) }
-    });
-  }
-
-  addBreadCrumbReturn(msg, data = null) {
-    if (!this.options.sentryDSN)
-      return
-
-    Sentry.addBreadcrumb({
-      category: 'return',
-      message: msg,
-      level: 'info',
-      type: 'user',
-      data: {'rjsdata' : JSON.stringify(data) }
-    });
-  }
-
-
-  addBreadCrumbError(msg) {
-    if (!this.options.sentryDSN)
-      return
-
-    Sentry.addBreadcrumb({
-      category: 'custom',
-      message: msg,
-      level: 'error',
-      type: 'user'
-    });
-  }
-
-  addSentryError(msg, raida = "unknown", data = null) {
-    if (!this.options.sentryDSN)
-      return
-
-    this.addBreadCrumbError("Reporting Error. RequestID " + this.requestId)
-    Sentry.withScope(function(scope) {
-      scope.setLevel("error")
-      scope.setTag("raida", raida)
-      scope.setExtra("raidaServer", raida)
-      scope.setExtra("data", JSON.stringify(data))
-      Sentry.captureException(new Error(msg))
-    })
-  }
-
-  // Get denomination
-  getDenomination(sn) {
-    /*
-    if (sn < 1)
-      return 0
-
-    if (sn < 2097153)
-      return 1
-
-    if (sn < 4194305)
-      return 5
-
-    if (sn < 6291457)
-      return 25
-
-    if (sn < 14680065)
-      return 100
-
-    if (sn < 16777217)
-      return 250
-*/
-    return 1
-  }
 
   // RAIDA to query for SkyWallet creation
   setDefaultRAIDA(raidaNum) {
@@ -264,45 +101,43 @@ class SkyVaultJS {
 
   // Echo
   async apiEcho(callback = null) {
+    let ab = new ArrayBuffer(19 + 5)
+    let d = new DataView(ab)
+    d.setUint8(5, 0x04)//command echo
+    d.setUint8(8, 0x01)//coin id
+    d.setUint8(12, 0xAB)// echo
+    d.setUint8(13, 0xAB)// echo
+    d.setUint8(15, 0x01)//udp number//udp number
+    d.setUint8(22, 0x3e)
+    d.setUint8(23, 0x3e) // Trailing chars
 
-    this.addBreadCrumbEntry("apiEcho")
-let ab = new ArrayBuffer(19 + 5)
-let d = new DataView(ab)
-d.setUint8(5, 0x04)//command echo
-d.setUint8(8, 0x01)//coin id
-d.setUint8(12, 0xAB)// echo
-d.setUint8(13, 0xAB)// echo
-d.setUint8(15, 0x01)//udp number//udp number
-d.setUint8(22, 0x3e)
-  d.setUint8(23, 0x3e) // Trailing chars
-await this.waitForSockets()
+    await this.waitForSockets()
+    console.log("waited")
     let rqs = this._launchRequests("echo", ab, callback)
     let rv = {
       status: 'done',
-      code : SkyVaultJS.ERR_NO_ERROR,
-      onlineServers : 0,
+      code: SkyVaultJS.ERR_NO_ERROR,
+      onlineServers: 0,
       totalServers: this._totalServers,
       serverStatuses: [],
-      details : []
+      details: []
     }
 
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
-
         if (serverResponse === "error" || serverResponse === "network")
           return
+
         let dView = new DataView(serverResponse)
-        if (dView.getUint8(2) === 250){
+        if (dView.getUint8(2) === 250) {
           rv.serverStatuses[dView.getUint8(0)] = 1
           rv['onlineServers']++;
-          //this._activeServers.push(dView.getUint8(0))
         }
-        else{
+        else {
           rv.serverStatuses[dView.getUint8(0)] = 0
         }
       })
 
-      this.addBreadCrumbReturn("apiEcho", rv)
 
       return rv
     })
@@ -322,69 +157,68 @@ await this.waitForSockets()
       if (!this._validateCoin(coin))
         continue
 
-        if (!('an' in coin))
-          continue
+      if (!('an' in coin))
+        continue
 
-          if (!('pan' in coin))
-            continue
+      if (!('pan' in coin))
+        continue
 
 
       coins.push(coin)
     }
 
-      if (coins.length < 1) {
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-      }
+    if (coins.length < 1) {
+      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
+    }
 
 
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-      let chcrc32 = this._crc32(challange,0,12)
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange, 0, 12)
 
-    this.addBreadCrumbEntry("apiEcho")
     let ab, d
     let rqdata = []
     for (let i = 0; i < this._totalServers; i++) {
-  ab = new ArrayBuffer(24 + 16 + 35*coins.length)
-  d = new DataView(ab)
-  d.setUint8(ab.byteLength - 1, 0x3e);
-  d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+      ab = new ArrayBuffer(24 + 16 + 35 * coins.length)
+      d = new DataView(ab)
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
 
-  d.setUint8(2, i);
-  d.setUint8(5, 0x02)//command find
-  /*
-  if(coin.sn >= 26000 && coin.sn <= 100000){
-  d.setUint8(8, 0x00); //coin id
-  }else{
-  d.setUint8(8, 0x01); //coin id
-  */
-  d.setUint8(8, 0x01)//coin id
-  d.setUint8(12, 0xAB)// echo
-  d.setUint8(13, 0xAB)// echo
-  d.setUint8(15, 0x01)//udp number//udp number
-  d.setUint8(22, 0x3e)
-  d.setUint8(23, 0x3e) // Trailing chars
-  for (let x = 0; x < 12; x++) {
-    d.setUint8(22 + x, challange[x])
-  }
-  d.setUint32(34, chcrc32)
-  coins.forEach((coin, j) => {
-    d.setUint32(38 + j * 35, coin.sn << 8)
-    for (let x = 0; x < 16; x++) {
-      d.setUint8(41 + 35 * j + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+      d.setUint8(2, i);
+      d.setUint8(5, 0x02)//command find
+      /*
+      if(coin.sn >= 26000 && coin.sn <= 100000){
+      d.setUint8(8, 0x00); //coin id
+      }else{
+      d.setUint8(8, 0x01); //coin id
+      */
+      d.setUint8(8, 0x01)//coin id
+      d.setUint8(12, 0xAB)// echo
+      d.setUint8(13, 0xAB)// echo
+      d.setUint8(15, 0x01)//udp number//udp number
+      d.setUint8(22, 0x3e)
+      d.setUint8(23, 0x3e) // Trailing chars
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
+      coins.forEach((coin, j) => {
+        d.setUint32(38 + j * 35, coin.sn << 8)
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(41 + 35 * j + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+        }
+        for (let y = 0; y < 16; y++) {
+          d.setUint8(57 + 35 * j + y, parseInt(coin.pan[i].substr(y * 2, 2), 16));
+        }
+      })
+
+      rqdata.push(ab)
     }
-    for (let y = 0; y < 16; y++) {
-      d.setUint8(57 + 35 * j + y, parseInt(coin.pan[i].substr(x * 2, 2), 16));
-    }
-  })
 
-  rqdata.push(ab)
-}
-
-  await this.waitForSockets()
+    await this.waitForSockets()
     let rqs = this._launchRequests("find", rqdata, callback)
     let rv = {
       status: 'done',
-      code : SkyVaultJS.ERR_NO_ERROR,
+      code: SkyVaultJS.ERR_NO_ERROR,
       recovered: []
 
     }
@@ -437,8 +271,6 @@ await this.waitForSockets()
 
       })
 
-      this.addBreadCrumbReturn("apiEcho", rv)
-
       return rv
     })
 
@@ -446,9 +278,7 @@ await this.waitForSockets()
   }
 
   // Detect
-async  apiPown(params, callback = null) {
-    this.addBreadCrumbEntry("apiDetect", params)
-
+  async apiPown(params, callback = null) {
     if (!Array.isArray(params)) {
       console.error("Invalid input data")
       return null
@@ -457,12 +287,11 @@ async  apiPown(params, callback = null) {
     let rqdata = this._formRequestData(params)
 
 
-await this.waitForSockets()
+    await this.waitForSockets()
     // Launch Requests
     let rqs = this._launchRequests("multi_detect", rqdata, callback)
 
     let rv = this._getGenericMainPromise(rqs, params).then(response => {
-      this.addBreadCrumbReturn("apiDetect", response)
 
       return response
     })
@@ -471,85 +300,83 @@ await this.waitForSockets()
     return rv
   }
 
-  async  apiDetect(params, callback = null) {
-      this.addBreadCrumbEntry("apiDetect", params)
+  async apiDetect(params, callback = null) {
 
-      if (!Array.isArray(params)) {
-        console.error("Invalid input data")
-        return null
-      }
-
-      let rqdata = this._formRequestData(params, false, 1)
-
-
-await this.waitForSockets()
-      // Launch Requests
-      let rqs = this._launchRequests("multi_detect", rqdata, callback)
-
-      let rv = this._getGenericMainPromise(rqs, params).then(response => {
-        this.addBreadCrumbReturn("apiDetect", response)
-
-        return response
-      })
-
-
-      return rv
+    if (!Array.isArray(params)) {
+      console.error("Invalid input data")
+      return null
     }
+
+    let rqdata = this._formRequestData(params, false, 1)
+
+
+    await this.waitForSockets()
+    // Launch Requests
+    let rqs = this._launchRequests("multi_detect", rqdata, callback)
+
+    let rv = this._getGenericMainPromise(rqs, params).then(response => {
+
+      return response
+    })
+
+
+    return rv
+  }
 
   // Deletes a statement from the RAIDA
   async apiDeleteRecord(params, callback = null) {
     if (!('coin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing")
 
-      let coin = params['coin']
-      if (!this._validateCoin(coin)) {
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
+    let coin = params['coin']
+    if (!this._validateCoin(coin)) {
+      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
+    }
+
+
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange, 0, 12)
+
+
+    let rqdata = [];
+    let ab, d;
+
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(24 + 35);
+      d = new DataView(ab); //rqdata.push(ab)
+
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+
+      d.setUint8(2, i); //raida id
+
+      d.setUint8(5, 131); //command delete statement
+
+      d.setUint8(8, 0x01); //coin id
+
+      d.setUint8(12, 0xAB); // echo
+
+      d.setUint8(13, 0xAB); // echo
+
+      d.setUint8(15, 0x01); //udp number
+      //body
+
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
       }
+      d.setUint32(34, chcrc32)
 
+      d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
 
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-      let chcrc32 = this._crc32(challange,0,12)
-
-
-          let rqdata = [];
-          let ab, d;
-
-          for (let i = 0; i < this._totalServers; i++) {
-            ab = new ArrayBuffer(24+35);
-            d = new DataView(ab); //rqdata.push(ab)
-
-            d.setUint8(ab.byteLength - 1, 0x3e);
-            d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-
-            d.setUint8(2, i); //raida id
-
-            d.setUint8(5, 131); //command delete statement
-
-            d.setUint8(8, 0x01); //coin id
-
-            d.setUint8(12, 0xAB); // echo
-
-            d.setUint8(13, 0xAB); // echo
-
-            d.setUint8(15, 0x01); //udp number
-            //body
-
-            for (let x = 0; x < 12; x++) {
-              d.setUint8(22 + x, challange[x])
-            }
-            d.setUint32(34, chcrc32)
-
-            d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
-
-            for (let x = 0; x < 16; x++) {
-              d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
-            }
-            rqdata.push(ab)
-          }
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+      }
+      rqdata.push(ab)
+    }
 
     let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Deleted successfully"
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'text': "Deleted successfully"
     }
 
     let a, e, f
@@ -562,7 +389,7 @@ await this.waitForSockets()
           e++
           return
         }
-          let dView = new DataView(serverResponse);
+        let dView = new DataView(serverResponse);
         if (dView.getUint8(2) == 250) {
           a++
           return
@@ -606,103 +433,93 @@ await this.waitForSockets()
       yr = ts.year
       mm = ts.month
       dy = ts.day
-    }else{
+    } else {
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_TIMESTAMP, "Missing Timestamp")
     }
-    if('rows' in params){
+    if ('rows' in params) {
       num_rows = params['rows']
     }
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    let chcrc32 = this._crc32(challange,0,12)
-let guid = this._generatePan()
+    let chcrc32 = this._crc32(challange, 0, 12)
+    let guid = this._generatePan()
     let rqdata = []
     let ab, d;
     for (let i = 0; i < this._totalServers; i++) {
       ab = new ArrayBuffer(80);
       d = new DataView(ab); //rqdata.push(ab)
-			d.setUint8(ab.byteLength -1, 0x3e)
-				d.setUint8(ab.byteLength -2, 0x3e) // Trailing chars
+      d.setUint8(ab.byteLength - 1, 0x3e)
+      d.setUint8(ab.byteLength - 2, 0x3e) // Trailing chars
 
-        d.setUint8(2, i); //raida id
-        d.setUint8(5, 130); //command show statement
-        d.setUint8(8, 0x00); //coin id
-        d.setUint8(12, 0xAB); // echo
-        d.setUint8(13, 0xAB); // echo
-        d.setUint8(15, 0x01);//udp number
-        //body
-        for (let x = 0; x < 12; x++) {
-          d.setUint8(22 + x, challange[x])
-        }
-        d.setUint32(34, chcrc32)
-        d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
-        for (let x = 0; x < 16; x++) {
-          d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
-        }
-        if(num_rows != null)
+      d.setUint8(2, i); //raida id
+      d.setUint8(5, 130); //command show statement
+      d.setUint8(8, 0x00); //coin id
+      d.setUint8(12, 0xAB); // echo
+      d.setUint8(13, 0xAB); // echo
+      d.setUint8(15, 0x01);//udp number
+      //body
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
+      d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+      }
+      if (num_rows != null)
         d.setUint8(57, num_rows)//rows
-        else {
-          d.setUint8(57, 1)
-        }
-        if(yr > 2000)
-          yr = yr - 2000
-        d.setUint8(58, yr)//year
-        d.setUint8(59, mm)//month
-        d.setUint8(60, dy)//day
-        switch(i){
-          case 0:
-          case 1:
-          case 2:
-          case 3:
-          case 4:
-          case 5:
-          case 6:
-          case 7:
+      else {
+        d.setUint8(57, 1)
+      }
+      if (yr > 2000)
+        yr = yr - 2000
+      d.setUint8(58, yr)//year
+      d.setUint8(59, mm)//month
+      d.setUint8(60, dy)//day
+      switch (i) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
           d.setUint8(61, 0x00)
           break;
-          case 8:
-          case 9:
-          case 10:
-          case 11:
-          case 12:
-          case 13:
-          case 14:
-          case 15:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
           d.setUint8(61, 0x01)
           break;
-          case 16:
-          case 17:
-          case 18:
-          case 19:
-          case 20:
-          case 21:
-          case 22:
-          case 23:
+        case 16:
+        case 17:
+        case 18:
+        case 19:
+        case 20:
+        case 21:
+        case 22:
+        case 23:
           d.setUint8(61, 0x11)
           break;
-          case 24:
+        case 24:
           d.setUint8(61, 0xFF)
           break;
-        }
+      }
       for (let x = 0; x < 16; x++) {
         d.setUint8(62 + x, parseInt(guid.substr(x * 2, 2), 16));
       }//one time key
       rqdata.push(ab)
     }
 
-    /*
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        'sn' : coin.sn,
-        'an' : coin.an[i],
-        'return' : 'all',
-        'start_date': ts
-      })
-    }*/
-
     let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Records returned",
-      'records' : [],
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'text': "Records returned",
+      'records': [],
       'balance': []
 
     }
@@ -730,55 +547,45 @@ let guid = this._generatePan()
           }
           rv.balance.push(dView.getUint32(12))
 
-
-          /*
-          if (!Array.isArray(data)) {
-            e++
-            serverResponses.push(null)
-            return
-          }
-*/
           serverResponses.push(serverResponse)
-          if(dView.byteLength > 16){
-let offset = 16
-let nonmemo= 31
-let unread = true
-while(unread){
-let data = new DataView(serverResponse, offset)
-          let mparts = []
-          let key = ""
-          let memosize = 0
-           for (let r = 0; r < 16; r++) {
-             key += data.getUint8(r).toString(16)
-           }
-            //let key = ldata.statement_id
-            if (!(key in statements)) {
-              statements[key] = {}
-              statements[key]['type'] = data.getUint8(16)
-              statements[key]['amount'] = data.getUint32(17)
-              statements[key]['balance'] = data.getUint32(21)
-              statements[key]['time'] = new Uint8Array(serverResponse,25+offset,6)
-              statements[key]['guid'] = key
-              statements[key]['mparts'] = []
+          if (dView.byteLength > 16) {
+            let offset = 16
+            let nonmemo = 31
+            let unread = true
+            while (unread) {
+              let data = new DataView(serverResponse, offset)
+              let key = ""
+              for (let r = 0; r < 16; r++) {
+                key += data.getUint8(r).toString(16)
+              }
+              //let key = ldata.statement_id
+              if (!(key in statements)) {
+                statements[key] = {}
+                statements[key]['type'] = data.getUint8(16)
+                statements[key]['amount'] = data.getUint32(17)
+                statements[key]['balance'] = data.getUint32(21)
+                statements[key]['time'] = new Uint8Array(serverResponse, 25 + offset, 6)
+                statements[key]['guid'] = key
+                statements[key]['mparts'] = []
+              }
+
+
+              let x = 0;
+              let memobytes = [];
+              //let endcheck = data.getUint16(nonmemo + x);
+
+              while (x < 50) {//endcheck != 0) {
+                memobytes.push(data.getUint8(nonmemo + x));
+                x++;
+                //endcheck = data.getUint16(nonmemo + x);
+              }
+
+              statements[key]['mparts'][rIdx] = memobytes;
+              offset = offset + nonmemo + x;//+2;
+              if (offset == serverResponse.byteLength)
+                unread = false
             }
-
-
-            let x = 0;
-            let memobytes = [];
-            //let endcheck = data.getUint16(nonmemo + x);
-
-            while (x < 50){//endcheck != 0) {
-              memobytes.push(data.getUint8(nonmemo + x));
-              x++;
-              //endcheck = data.getUint16(nonmemo + x);
-            }
-
-            statements[key]['mparts'][rIdx] = memobytes;
-            offset = offset + nonmemo + x;//+2;
-            if(offset == serverResponse.byteLength)
-            unread = false
-        }
-      }
+          }
 
           a++
           return
@@ -790,7 +597,7 @@ let data = new DataView(serverResponse, offset)
           return
         }
 
-        if(dView.getUint8(2) == 120){
+        if (dView.getUint8(2) == 120) {
           n++
         }
 
@@ -799,29 +606,29 @@ let data = new DataView(serverResponse, offset)
       })
 
       let result = this._gradeCoin(a, f, e)
-      if(n > 20)
+      if (n > 20)
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_RECORD_NOT_FOUND, "No Statements found");
-/*
-        if (!this._validResult(result)){
-          let er = this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to read statements. Too many error responses from RAIDA");
-          this._addDetails(er, serverResponses);
-          return er;
-        }*/
+      /*
+              if (!this._validResult(result)){
+                let er = this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to read statements. Too many error responses from RAIDA");
+                this._addDetails(er, serverResponses);
+                return er;
+              }*/
       for (let statement_id in statements) {
         let item = statements[statement_id]
         //let odata = this._getDataFromObjectMemo(item.mparts)
         //if (odata == null) {
-          //console.log("Failed to assemble statement " + statement_id + " Not enough valid responses")
-          //continue
+        //console.log("Failed to assemble statement " + statement_id + " Not enough valid responses")
+        //continue
         //}
 
         rv.records.push(item)//(odata)
       }
-/*
-      // Fire-and-forget (if neccessary)
-      this._syncAdd(serverResponses, "statement_id", "statements/sync/sync_add")
-      this._syncDelete(serverResponses, "statement_id", "statements/sync/sync_delete")
-*/
+      /*
+            // Fire-and-forget (if neccessary)
+            this._syncAdd(serverResponses, "statement_id", "statements/sync/sync_add")
+            this._syncDelete(serverResponses, "statement_id", "statements/sync/sync_delete")
+      */
 
       return rv
     })
@@ -832,7 +639,6 @@ let data = new DataView(serverResponse, offset)
 
   // Creates a statement on the RAIDA
   async apiCreateRecord(params, callback = null) {
-    this.addBreadCrumbEntry("apiCreateRecord", params)
     if (!('coin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing")
 
@@ -887,32 +693,32 @@ let data = new DataView(serverResponse, offset)
     let rqdata = []
     let amount = params.amount
     let tags = this._getStripesMirrorsForObject({
-      'guid' : guid,
-      'memo' : memo,
-      'amount' : amount,
-      'initiator_id' : iid,
-      'initiator_image_url' : iimage_url,
-      'initiator_description_url' : idescription_url,
-      'initiator_type' : itype
+      'guid': guid,
+      'memo': memo,
+      'amount': amount,
+      'initiator_id': iid,
+      'initiator_image_url': iimage_url,
+      'initiator_description_url': idescription_url,
+      'initiator_type': itype
     })
     for (let i = 0; i < this._totalServers; i++) {
       rqdata.push({
-        'account_sn' : coin.sn,
-        'account_an' : coin.an[i],
+        'account_sn': coin.sn,
+        'account_an': coin.an[i],
         'transaction_id': guid,
         'version': 0,
-        'compression' : 0,
-        'raid' : '110',
-        'stripe' : tags[i]['stripe'],
-        'mirror' : tags[i]['mirror1'],
-        'mirror2' : tags[i]['mirror2']
+        'compression': 0,
+        'raid': '110',
+        'stripe': tags[i]['stripe'],
+        'mirror': tags[i]['mirror1'],
+        'mirror2': tags[i]['mirror2']
       })
     }
 
     let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'guid' : guid,
-      'text' : "Created successfully"
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'guid': guid,
+      'text': "Created successfully"
     }
 
     let passed = 0
@@ -935,8 +741,8 @@ let data = new DataView(serverResponse, offset)
       })
 
       let result = this._gradeCoin(a, f, e)
-//      if (result == this.__counterfeitResult)
-//        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "The coin is counterfeit")
+      //      if (result == this.__counterfeitResult)
+      //        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "The coin is counterfeit")
 
       if (!this._validResult(result))
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to create statement. Too many error responses from RAIDA")
@@ -944,8 +750,6 @@ let data = new DataView(serverResponse, offset)
       return rv
 
     })
-
-    this.addBreadCrumbReturn("apiCreateStatement", rv)
 
     return mainPromise
   }
@@ -971,7 +775,6 @@ let data = new DataView(serverResponse, offset)
 
   // Delete DNS
   async apiDeleteSkyWallet(params, callback = null) {
-    this.addBreadCrumbEntry("apiDeleteSkyWallet", params)
 
     if (!('coin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing")
@@ -986,7 +789,7 @@ let data = new DataView(serverResponse, offset)
 
     let tdata = await this._getDefaultTicket(params['coin'], callback)
     if (tdata == null) {
-       return this._getErrorCode(SkyVaultJS.ERR_FAILED_TO_GET_TICKETS, "Failed to get ticket from RAIDA" + this.options.defaultRaidaForQuery + " and backup raida " + this.options.defaultRaidaForBackupQuery)
+      return this._getErrorCode(SkyVaultJS.ERR_FAILED_TO_GET_TICKETS, "Failed to get ticket from RAIDA" + this.options.defaultRaidaForQuery + " and backup raida " + this.options.defaultRaidaForBackupQuery)
     }
 
     if (callback != null)
@@ -998,12 +801,12 @@ let data = new DataView(serverResponse, offset)
 
     console.log("got delete ticket " + ticket)
     let protocol = "https://";
-    if(this.wsprotocol == "ws")
+    if (this.wsprotocol == "ws")
       protocol = "http://";
 
 
-    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns_delete.php?"
-    url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
+    let url = protocol + this.options.ddnsServer + "/service/ddns/ddns_delete.php?"
+    url += "sn=" + coin.sn + "&username=" + name + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
       return this._getErrorCode(SkyVaultJS.ERR_DNS_SERVER_INCORRECT_RESPONSE, "DNSService returned wrong code: " + response.status)
@@ -1022,18 +825,16 @@ let data = new DataView(serverResponse, offset)
       return this._getErrorCode(SkyVaultJS.ERR_DNS_SERVER_INCORRECT_RESPONSE, "DNSService returned incorrect status: " + msg)
     }
 
-    this.addBreadCrumbReturn("apiDeleteSkyWallet", "done")
     return {
       // Legacy
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Registered Successfully"
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'text': "Registered Successfully"
     }
 
   }
 
   // Register DNS
   async apiRegisterSkyWallet(params, callback = null) {
-    this.addBreadCrumbEntry("apiRegisterSkyWallet", params)
 
     if (!('coin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing")
@@ -1062,29 +863,18 @@ let data = new DataView(serverResponse, offset)
     }
 
     name = params['name']
-        console.log("waited3")
-/*
-    let tdata = await this._getDefaultTicket(params['coin'], callback)
-    if (tdata == null) {
-        return this._getErrorCode(SkyVaultJS.ERR_FAILED_TO_GET_TICKETS, "Failed to get ticket from RAIDA" + this.options.defaultRaidaForQuery + " and backup raida " + this.options.defaultRaidaForBackupQuery)
-    }
-
-    let ticket = tdata[0]
-    let rquery = tdata[1]
-
-    console.log("got ticket " + ticket)
-*/
+    console.log("waited3")
     let rquery = 0
 
     if (callback != null)
       callback(0, "register_dns")
 
-let protocol = "https://";
-if(this.wsprotocol == "ws")
-  protocol = "http://";
+    let protocol = "https://";
+    if (this.wsprotocol == "ws")
+      protocol = "http://";
 
-    let url =  protocol + this.options.ddnsServer + "/service/ddns/ddns.php?"
-    url += "sn=" + coin.sn + "&username=" + name  + "&raidanumber=" + rquery
+    let url = protocol + this.options.ddnsServer + "/service/ddns/ddns.php?"
+    url += "sn=" + coin.sn + "&username=" + name + "&raidanumber=" + rquery
     let response = await this._axInstance.get(url)
     if (response.status != 200)
       return this._getErrorCode(SkyVaultJS.ERR_DNS_SERVER_INCORRECT_RESPONSE, "DNSService returned wrong code: " + response.status)
@@ -1103,19 +893,17 @@ if(this.wsprotocol == "ws")
       return this._getErrorCode(SkyVaultJS.ERR_DNS_SERVER_INCORRECT_RESPONSE, "DNSService returned incorrect status: " + msg)
     }
 
-    this.addBreadCrumbReturn("apiRegisterSkyWallet", "done")
     return {
       // Legacy
-      'status' : 'done',
+      'status': 'done',
 
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Registered Successfully"
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'text': "Registered Successfully"
     }
   }
 
   // View receipt
   async apiViewreceipt(params, callback = null) {
-    this.addBreadCrumbEntry("apiViewReceipt", params)
 
     let coin = params
     if (!'account' in params || !'tag' in params) {
@@ -1136,28 +924,28 @@ if(this.wsprotocol == "ws")
         tag: params.tag,
       })
     }
-await this.waitForSockets()
+    await this.waitForSockets()
     let rqs = this._launchRequests("view_receipt", rqdata, 'GET', callback)
     let rv = {
-      status : 'done',
+      status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
-      sns : {},
-      details : [],
-      total : 0
+      sns: {},
+      details: [],
+      total: 0
     }
     let mainPromise = rqs.then(response => {
       for (let i = 0; i < response.length; i++) {
-        if (typeof(response[i].value) == 'undefined')
+        if (typeof (response[i].value) == 'undefined')
           continue
 
-        if (typeof(response[i].value.data) != 'object')
+        if (typeof (response[i].value.data) != 'object')
           continue
 
         response[i].value.data.status = "pass"
       }
 
       this._parseMainPromise(response, 0, rv, serverResponse => {
-        if (typeof(serverResponse) != 'object')
+        if (typeof (serverResponse) != 'object')
           return
 
         if ('serial_numbers' in serverResponse) {
@@ -1187,7 +975,7 @@ await this.waitForSockets()
       })
 
       for (let sn of rv.sns)
-        rv.total += this.getDenomination(sn)
+        rv.total++
 
       return rv
 
@@ -1198,30 +986,19 @@ await this.waitForSockets()
 
   // Get Ticket (no multi)
   async apiGetticket(params, callback = null) {
-    this.addBreadCrumbEntry("apiGetTicket", params)
 
     let coin = params
     if (!this._validateCoin(coin)) {
       return this._getError("Failed to validate params")
     }
-/*
-    let rqdata = []
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        sn: coin.sn,
-        nn: coin.nn,
-        an: coin.an[i],
-        pan: coin.pan[i],
-        denomination: this.getDenomination(coin.sn),
-      })
-    }*/
+
     let rqdata = this._formRequestData([coin], false, 11)
-await this.waitForSockets()
+    await this.waitForSockets()
     let rqs = this._launchRequests("get_ticket", rqdata, callback)
     let rv = {
-      status : 'done',
+      status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
-      tickets : []
+      tickets: []
     }
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
@@ -1235,16 +1012,16 @@ await this.waitForSockets()
 
           if (status == 243) {
             if (dView.byteLength >= 16)
-            ms = dView.getUint8(16 + i / 8);
+              ms = dView.getUint8(16 + i / 8);
             else {
               ms = dView.getUint8(12 + i / 8);
             }
             let bitpos = i - 8 * (i / 8);
             mixed = ms >>> bitpos & 1;
           }
-          if(status == 250 || status == 241 || status == 243 && mixed == 1)
-          rv.tickets.push(dView.getUint32(3))
-          else{
+          if (status == 250 || status == 241 || status == 243 && mixed == 1)
+            rv.tickets.push(dView.getUint32(3))
+          else {
             rv.tickets.push("error")
           }
         }
@@ -1256,89 +1033,8 @@ await this.waitForSockets()
     return mainPromise
   }
 
-  // SuperFix
-  /*
-  async _realSuperFix(rIdx, coins, callback = null) {
-    let rqdata = this._formRequestData(coins)
-
-    let rv = {
-      'fixedcoins' : []
-    }
-
-    rqs = this._launchRequests("multi_detect", rqdata, callback)
-    let resultData = await this._getGenericBriefMainPromise(rqs, coins)
-    console.log("mdata")
-    console.log(resultData)
-    if (resultData.status != "done") {
-      rv.notfixed = coins.length
-      return rv
-    }
-
-    if (!('tickets' in resultData)) {
-      return rv
-    }
-
-    console.log(resultData)
-    let sns = []
-    let pans = []
-    let tickets = []
-    for (let sn in resultData['result']) {
-      let coin = resultData['result'][sn]
-      if (coin.result != this.__frackedResult) {
-        continue
-      }
-
-      sns.push(coin.sn)
-      pans.push(coin.an[rIdx])
-    }
-
-    if (sns.length == 0)
-      return rv
-
-    for (let i = 0; i < this._totalServers; i++) {
-      let ticket = resultData.tickets[i]
-
-      if (!ticket || i == rIdx) {
-        tickets[i] = false
-        continue
-      }
-
-      tickets[i] = ticket
-    }
-
-    rqdata = []
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata[i] = {
-        'sn' : sns,
-        'pan' : pans,
-        'r' : tickets
-      }
-    }
-
-    let a, f, e
-    a = f = e = 0
-    console.log("Doing sfix")
-    console.log(rqdata)
-    let rqs = this._launchRequests("super_fix", rqdata, 'GET', callback, [rIdx])
-    let sfixResultData = await this._getGenericBriefMainPromise(rqs, coins)
-    if (sfixResultData.status != "done") {
-      return rv
-    }
-
-    for (let sn in sfixResultData.result) {
-      let result = sfixResultData.result[sn]
-
-      if (result.authentic == 1) {
-        rv.fixedcoins.push(sn)
-      }
-    }
-
-    return rv
-  }
-*/
   // FixFracked
   async apiFixfracked(params, callback = null) {
-    this.addBreadCrumbEntry("apiFixFracked", params)
 
     let coins = []
     let superfixCoins = []
@@ -1361,27 +1057,6 @@ await this.waitForSockets()
 
       coin.pownArray = coin.pownstring.split("")
       coin.pownstring = ""
-/*
-      let fc = 0
-      let needSuperfix = false
-      for (let x = 0; x < this._totalServers; x++) {
-        if (coin.pownArray[x] == 'f') {
-          fc++
-          if (fc == 5) {
-            superfixCoins.push(coin)
-            needSuperfix = true
-            break
-          }
-          //coin.an[x] = this._generatePan()
-          //coin.pan[x] = coin.an[x]
-        } else {
-          fc = 0
-        }
-      }
-
-      if (needSuperfix)
-        continue
-*/
       coins.push(coin)
     }
 
@@ -1390,38 +1065,9 @@ await this.waitForSockets()
       code: SkyVaultJS.ERR_NO_ERROR,
       totalNotes: coins.length,
       fixedNotes: 0,
-      result : {},
+      result: {},
     }
-/*
-    // Coins for Superfix. Very slow.
-    if (superfixCoins.length > 0) {
-      for (let i = 0; i < this._totalServers; i++) {
-        let ctfix = []
-        for (let j = 0; j < superfixCoins.length; j++) {
-          if (superfixCoins[j].pownArray[i] != 'f')
-            continue;
 
-          ctfix.push(superfixCoins[j])
-        }
-
-        if (ctfix.length != 0) {
-          // Doing SuperFix
-          let srv = await this._realSuperFix(i, ctfix, callback)
-
-          for (let v = 0; v < srv.fixedcoins.length; v++) {
-            let sn = srv.fixedcoins[v]
-            // Find coin by SN
-            for (let c = 0; c < superfixCoins.length; c++) {
-              if (superfixCoins[c].sn == sn) {
-                superfixCoins[c].an[i] = superfixCoins[c].pan[i]
-                superfixCoins[c].pownArray[i] = 'p'
-              }
-            }
-          }
-        }
-      }
-    }
-*/
     // Round 1
     for (let i = 0; i < this._totalServers; i++) {
       let ctfix = []
@@ -1436,21 +1082,6 @@ await this.waitForSockets()
         await this._realFix(0, i, ctfix, callback)
       }
     }
-/*
-    // Round 2
-    for (let i = this._totalServers - 1; i >= 0; i--) {
-      let ctfix = []
-      for (let j = 0; j < coins.length; j++) {
-        if (coins[j].pownArray[i] == 'a')
-          continue;
-
-        ctfix.push(coins[j])
-      }
-      if (ctfix.length != 0) {
-        await this._realFix(1, i, coins, callback)
-      }
-    }
-*/
 
     // Form the result after all fixings are done
     let a, c, e
@@ -1481,43 +1112,11 @@ await this.waitForSockets()
       rv.result[coins[i].sn] = coins[i]
     }
 
-    // Append SuperFix results
-    /*
-    for (let i = 0; i < superfixCoins.length; i++) {
-      a = c = e = 0
-      // Go over pownArray
-      for (let j = 0; j < superfixCoins[i].pownArray.length; j++) {
-        if (superfixCoins[i].pownArray[j] == 'p')
-          a++;
-        else if (superfixCoins[i].pownArray[j] == 'f')
-          c++;
-        else
-          e++;
-
-        superfixCoins[i].pownstring += superfixCoins[i].pownArray[j]
-        superfixCoins[i].errors = e
-        superfixCoins[i].authentic = a
-        superfixCoins[i].counterfeit = c
-      }
-
-      delete superfixCoins[i].pownArray
-      delete superfixCoins[i].pan
-      if (c == 0 && e == 0) {
-        superfixCoins[i].result = "fixed"
-        rv.fixedNotes++
-      }
-
-      rv.result[superfixCoins[i].sn] = superfixCoins[i]
-    }
-
-*/
-    this.addBreadCrumbReturn("apiFixFracked", rv)
     return rv
   }
 
   // Get CC by Card Number and CVV
   async apiGetCCByCardData(params) {
-    this.addBreadCrumbEntry("apiGetCCByCardData", params)
 
     if (!('cardnumber' in params))
       return this._getError("Card Number is not defined")
@@ -1549,194 +1148,59 @@ await this.waitForSockets()
 
     let rv = {
       status: 'done',
-      'cc' : {
+      'cc': {
         nn: 1,
         sn: sn,
         an: ans
       }
     }
 
-    this.addBreadCrumbReturn("apiGetCCByCardData", rv)
     return rv
 
   }
 
-  // Greates a CloudCoin by Username, Password and Email
-  async apiCreateCCForRegistration(params) {
-    this.addBreadCrumbEntry("apiCreateCCForRegistration", params)
-
-    if (!('sn' in params))
-      return this._getError("SN is not defined")
-
-    if (!('password' in params))
-      return this._getError("Password is not defined")
-
-
-    let password = params['password']
-    //let email = params['email']
-    if (password.length < this.options.minPasswordLength)
-      return this._getError("Password length must be at least 16 characters")
-
-    let sn = params['sn']
-    let finalStr = ""
-    let tStr = "" + CryptoJS.MD5(password)
-    let tChars = tStr.split('');
-    for (let c = 0; c < tChars.length; c++) {
-      let cs = parseInt(tChars[c], 16)
-      finalStr += cs
+  readCCFile(file) {//pass in an arraybuffer
+    if (!(file instanceof ArrayBuffer)) {
+      return this._getError("file is not passed in as ArrayBuffer")
     }
+    let d = new DataView(file)
+    let offset = 32
+    let eof = false
+    let ccs = []
+    while (!eof) {
 
-     // Generating rand and pin from the password
-    const rand = finalStr.slice(0, 12);
-    const pin = finalStr.slice(12, 16);
-    const pans = [];
-    for (let i = 0; i < 25; i++) {
-      const seed = '' + i + sn + rand + pin;
-      const p = '' + CryptoJS.MD5(seed);
-
-      const p0 = p.substring(0, 24);
-      let component = '' + sn + '' + i;
-      component = '' + CryptoJS.MD5(component);
-      const p1 = component.substring(0, 8);
-      pans[i] = p0 + p1;
-    }
-
-    const grv = {
-      "status": "done",
-      "pans" : pans,
-      "rand" : rand,
-      "cvv" : pin
-    };
-
-    this.addBreadCrumbReturn("apiCreateCCForRegistration", grv)
-
-    return grv;
-  }
-
-  // Get CC by username and Password
-  async apiGetCCByUsernameAndPassword(params) {
-    this.addBreadCrumbEntry("apiGetCCByUsernameAndPassword", params)
-
-    if (!('username' in params))
-      return this._getError("Username is not defined")
-
-    if (!('password' in params))
-      return this._getError("Password is not defined")
-
-    let username = params['username']
-    let password = params['password']
-    if (password.length < this.options.minPasswordLength)
-      return this._getError("Password length must be at least 16 characters")
-
-    let name = await this._resolveDNS(username)
-    if (name == null)
-      return this._getError("Failed to resolve DNS")
-
-    let sn = name
-    let finalStr = ""
-    let tStr = "" + CryptoJS.MD5(password)
-    let tChars = tStr.split('');
-    for (let c = 0; c < tChars.length; c++) {
-      let cs = parseInt(tChars[c], 16)
-      finalStr += cs
-    }
-
-    // Generating rand and pin from the password
-    let rand = finalStr.slice(0, 12)
-    let pin = finalStr.slice(12, 16)
-    let pans = []
-    for (let i = 0; i < this._totalServers; i++) {
-      let seed = "" + i + sn + rand + pin
-
-      const p0 = p.substring(0, 24);
-      let component = '' + sn + '' + i;
-      component = '' + CryptoJS.MD5(component);
-      const p1 = component.substring(0, 8);
-      pans[i] = p0 + p1;
-
-
-
-      //pans[i] = "" + CryptoJS.MD5(seed)
-    }
-
-    let cc = {
-      'sn' : sn,
-      'nn' : 1,
-      'an' : pans
-    }
-
-    let rvFinal = {
-      'status' : 'done',
-      'cc' : cc
-    }
-
-    this.addBreadCrumbReturn("apiGetCCByUsernameAndPassword", rvFinal)
-
-    return rvFinal
-
-  }
-
-  async apiLoginByUsernameAndPassword(params){
-    let cred = await this.apiGetCCByUsernameAndPassword(params)
-
-    let rv =
-      {
-        'status' : 'unknown',
-        'cc' : cred.cc
+      let ans = []
+      let an = ""
+      let sn = d.getUint32(offset) >>> 8
+      for (let x = 0; x < 25; x++) {
+        an = ""
+        for (let y = 0; y < 16; y++) {
+          let pos = offset + y + (x * 16) + 16
+          if (d.getUint8(pos) < 16) an += "0";
+          an += d.getUint8(pos).toString(16);
+        }
+        ans.push(an)
       }
-      let detect = await this.apiDetect([cred.cc])
-      rv.details = detect
-      if(detect.details.authenticNotes > 0 || detect.details.frackedNotes > 0)
-        rv.status = 'success'
-      else
-        rv.status = 'failure'
-
-  }
-
- readCCFile(file){//pass in an arraybuffer
-  this.addBreadCrumbEntry("apiReadCCFile")
-  if (!(file instanceof ArrayBuffer)) {
-    return this._getError("file is not passed in as ArrayBuffer")
-  }
-  let d = new DataView(file)
-let offset = 32
-let eof = false
-let ccs = []
-while(!eof){
-
-  let ans = []
-  let an = ""
-  let sn = d.getUint32(offset) >>>8
-  for(let x = 0; x < 25; x++){
-    an = ""
-    for(let y = 0; y < 16; y++){
-      let pos = offset + y + (x * 16) + 16
-      if (d.getUint8(pos) < 16) an += "0";
-      an += d.getUint8(pos).toString(16);
+      let cc = {sn: sn, an: ans}
+      ccs.push(cc)
+      offset += 416
+      if (offset >= file.byteLength)
+        eof = true
     }
-    ans.push(an)
+
+
+
+    let rv = {
+      'status': 'done',
+      'code': 0,
+      'cc': ccs
+    }
+
+    return rv
   }
-  let cc = {sn:sn,an:ans}
-  ccs.push(cc)
-  offset += 416
-  if(offset>= file.byteLength)
-  eof = true
-}
-
-
-
-  let rv = {
-    'status' : 'done',
-    'code' : 0,
-    'cc': ccs
-  }
-
-  return rv
-}
 
   // extract stack from PNG
   async extractStack(params) {
-    this.addBreadCrumbEntry("apiExtractStack", params)
 
     if (!('template' in params)) {
       return this._getError("Template is not defined")
@@ -1760,7 +1224,7 @@ while(!eof){
 
     let imgData = new Uint8Array(arrayBufferData)
     let idx = this._basePngChecks(imgData)
-    if (typeof(idx) == 'string')
+    if (typeof (idx) == 'string')
       return this._getError(idx)
 
     let fu8
@@ -1770,8 +1234,8 @@ while(!eof){
     let length
     while (true) {
       length = this._getUint32(fu8, i) - 32
-      let signature = String.fromCharCode(fu8[i + 4]) +  String.fromCharCode(fu8[i + 5])
-        + String.fromCharCode(fu8[i + 6]) +  String.fromCharCode(fu8[i + 7])
+      let signature = String.fromCharCode(fu8[i + 4]) + String.fromCharCode(fu8[i + 5])
+        + String.fromCharCode(fu8[i + 6]) + String.fromCharCode(fu8[i + 7])
 
       if (length == 0) {
         i += 12
@@ -1808,30 +1272,21 @@ while(!eof){
     let an = []
     let cloudcoin = []
     let numcoins = Math.floor(data.length / 416)
-    for (let i = 0; i < numcoins; i++){
+    for (let i = 0; i < numcoins; i++) {
       let sn
       let an = []
-      sn = this._getUint32(data,i*416) >>> 8
-      for(let y = 0; y < 25; y++){
+      sn = this._getUint32(data, i * 416) >>> 8
+      for (let y = 0; y < 25; y++) {
         an.push("")
         for (let x = 0; x < 16; x++) {
-          if(data[(y+1)*16 + x + 416*i] < 16) an[y] += "0";
-          an[y] += data[(y+1)*16 + x + 416*i].toString(16)//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+          if (data[(y + 1) * 16 + x + 416 * i] < 16) an[y] += "0";
+          an[y] += data[(y + 1) * 16 + x + 416 * i].toString(16)//((16 + x) + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
         }
       }
-      cloudcoin.push({"sn":sn, "an":an})
+      cloudcoin.push({"sn": sn, "an": an})
     }
-      //sdata += String.fromCharCode(data[i])
-/*
-    let o
-    try {
-      o = JSON.parse(sdata)
-    } catch(e) {
-      return this._getError("Failed to parse CloudCoin JSON")
-    }
-*/
     let rv = {
-      'status' : 'done',
+      'status': 'done',
       'cloudcoin': cloudcoin
     }
 
@@ -1846,79 +1301,8 @@ while(!eof){
 
   }
 
-  // Restore Card
-  async apiRestoreCard(params, callback = null) {
-    if (!('username' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_DNS_NAME, "Username is not defined")
-
-    let username = params['username']
-    let sn = await this._resolveDNS(username)
-    if (sn == null)
-      return this._getErrorCode(SkyVaultJS.ERR_DNS_RECORD_NOT_FOUND, "Failed to resolve SkyWallet")
-
-    params.sn = sn
-    let rv = await this.apiCreateCCForRegistration(params)
-    if (rv.status != "done")
-      return rv
-
-    let precardNumber = "401" + rv.rand
-    let reverse = precardNumber.split("").reverse().join("");
-    let total = 0;
-    for (let i = 0; i < reverse.length; i++) {
-      let num = parseInt(reverse.charAt(i))
-      if ((i + 3) % 2) {
-        num *= 2
-        if (num > 9)
-          num -= 9
-      }
-
-      total += num;
-    }
-
-    let remainder = 10 - (total % 10);
-    if (remainder == 10)
-      remainder = 0
-
-    let cardNumber = precardNumber + remainder
-    if (!this._validateCard(cardNumber, rv.cvv))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_CARD, "Invalid Card")
-
-    let fiveYearsFromNow = new Date();
-    fiveYearsFromNow.setFullYear(fiveYearsFromNow.getUTCFullYear() + 5);
-    let month = fiveYearsFromNow.getUTCMonth() + 1;
-    if (month < 10)
-      month = "0" + month
-
-    let year = fiveYearsFromNow.getUTCFullYear().toString().substr(-2);
-    let ed = month + '/' + year
-
-    let data = {
-      'cardnumber' : cardNumber,
-      'cvv': rv.cvv,
-      'username' : username,
-      'expiration_date' : ed
-    }
-
-    let res = await this.apiGenerateCard(data, callback)
-    if (res.code != SkyVaultJS.ERR_NO_ERROR)
-      return res
-
-    rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'cardnumber' : cardNumber,
-      'cvv': rv.cvv,
-      'expiration_date': ed,
-      'data': ''
-    }
-
-
-    return rv
-
-  }
-
   // Generates a PNG Card
   async apiGenerateCard(params, callback = null) {
-    this.addBreadCrumbEntry("apiGenerateCard", params)
 
     if (!('cardnumber' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_CARD_NUMBER, "Card Number is not defined")
@@ -1992,9 +1376,9 @@ while(!eof){
 
 
     let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : 'Card Generated',
-      'data' : bdata
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'text': 'Card Generated',
+      'data': bdata
     }
 
     return rv
@@ -2004,11 +1388,11 @@ while(!eof){
   async apiDrawCardData(data, username, cardnumber, cvv, ed, ip) {
     let c
     try {
-      c  = await require('canvas')
+      c = await require('canvas')
       if (!c)
         return this._getErrorCode(SkyVaultJS.ERR_NO_CANVAS_MODULE, "Canvas module not found")
-    } catch(e) {
-        return this._getErrorCode(SkyVaultJS.ERR_NO_CANVAS_MODULE, "Canvas module not found")
+    } catch (e) {
+      return this._getErrorCode(SkyVaultJS.ERR_NO_CANVAS_MODULE, "Canvas module not found")
     }
 
     let canvas = c.createCanvas(700, 906)
@@ -2034,11 +1418,11 @@ while(!eof){
       context.fillStyle = "#000000";
       context.lineStyle = "#000000";
       context.font = "35px sans-serif";
-      context.fillText( "CVV (Keep Secret): " + cvv, 64, 675);
+      context.fillText("CVV (Keep Secret): " + cvv, 64, 675);
       context.fillStyle = "#FFFFFF";
       context.lineStyle = "#FFFFFF";
       context.font = "18px sans-serif";
-      context.fillText( "IP " + ip, 174, 736);
+      context.fillText("IP " + ip, 174, 736);
 
       return canvas.toDataURL()
     })
@@ -2050,7 +1434,6 @@ while(!eof){
 
   // embed stack into image
   async embedInImage(params) {
-    this.addBreadCrumbEntry("apiEmbedInImage", params)
 
     if (!'template' in params) {
       return this._getError("Template is not defined")
@@ -2072,18 +1455,18 @@ while(!eof){
       delete params['coins'][i]['pan']
     }
 
-    let data = { "cloudcoin" : params['coins'] }
+    let data = {"cloudcoin": params['coins']}
     //data = JSON.stringify(data)
 
-    let coindatabuffer = new ArrayBuffer(416*data.cloudcoin.length)
+    let coindatabuffer = new ArrayBuffer(416 * data.cloudcoin.length)
     let coindataview = new DataView(coindatabuffer)
     data.cloudcoin.forEach((dcoin, i) => {
-      coindataview.setUint32(0 + 416*i, dcoin.sn << 8)
-      for(let y = 0; y < 25; y++){
-      for (let x = 0; x < 16; x++) {
-        coindataview.setUint8((y+1)*16 + x + 416*i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+      coindataview.setUint32(0 + 416 * i, dcoin.sn << 8)
+      for (let y = 0; y < 25; y++) {
+        for (let x = 0; x < 16; x++) {
+          coindataview.setUint8((y + 1) * 16 + x + 416 * i, parseInt(dcoin.an[y].substr(x * 2, 2), 16));
+        }
       }
-    }
     });
 
 
@@ -2105,14 +1488,14 @@ while(!eof){
 
     let imgData = new Uint8Array(arrayBufferData)
     let idx = this._basePngChecks(imgData)
-    if (typeof(idx) == 'string')
+    if (typeof (idx) == 'string')
       return this._getError(idx)
 
     let fu8, lu8, myu8
     fu8 = imgData.slice(0, idx + 4)
     lu8 = imgData.slice(idx + 4)
 
-    let ccLength = 416*data.cloudcoin.length//data.length//change to reflect new format
+    let ccLength = 416 * data.cloudcoin.length//data.length//change to reflect new format
 
     // length + type + crc32 = 12 bytes //+ new format headers(32) = 44
     myu8 = new Uint8Array(ccLength + 44)
@@ -2143,92 +1526,86 @@ while(!eof){
   }
 
   // Send
-    async apiSend(params, callback = null) {
-      this.addBreadCrumbEntry("apiSend", params);
-      this._rarr = {}; //this.addSentryError("superError", 19, {'xxx':'yyy'})
+  async apiSend(params, callback = null) {
+    this._rarr = {}; //this.addSentryError("superError", 19, {'xxx':'yyy'})
 
-      if (!'coins' in params) {
-        return this._getError("Invalid input data. No coins");
+    if (!'coins' in params) {
+      return this._getError("Invalid input data. No coins");
+    }
+
+    if (!Array.isArray(params['coins'])) {
+      return this._getError("Invalid input data. Coins must be an array");
+    }
+
+    if (!'to' in params) {
+      return this._getError("Invalid input data. To is not defined");
+    } // To address
+
+
+    let to = params['to'] + "";
+
+    if (to.match(/^\d+$/) && (to > 0 || to < 16777216)) {} else {
+      to = await this._resolveDNS(params['to']);
+
+      if (to == null) {
+        return this._getError("Failed to resolve DNS name: " + params.to);
       }
+    }
 
-      if (!Array.isArray(params['coins'])) {
-        return this._getError("Invalid input data. Coins must be an array");
-      }
+    let amount = 0;
+    let amountNotes = 0;
 
-      if (!'to' in params) {
-        return this._getError("Invalid input data. To is not defined");
-      } // To address
+    for (let i in params.coins) {
+      let cc = params.coins[i];
+      amount++;
+      amountNotes++;
+    }
 
+    let packetscoins = [];
+    let packets = [];
 
-      let to = params['to'] + "";
-
-      if (to.match(/^\d+$/) && (to > 0 || to < 16777216)) {} else {
-        to = await this._resolveDNS(params['to']);
-
-        if (to == null) {
-          return this._getError("Failed to resolve DNS name: " + params.to);
+    let eoc = false;
+    let c = 0;
+    while (eoc == false) {
+      let pack = [];
+      for (let p = 0; p < 40; p++) {
+        pack.push(params.coins[c]);
+        c++;
+        if (c >= amountNotes) {
+          eoc = true;
+          break;
         }
       }
+      packetscoins.push(pack);
+    }
 
-      let amount = 0;
-      let amountNotes = 0;
+    let memo = 'memo' in params ? params['memo'] : "Send";
+    let from = "SkyVaultJS";
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-      for (let i in params.coins) {
-        let cc = params.coins[i];
-        amount += this.getDenomination(cc.sn);
-        amountNotes++;
-      }
-
-      let packetscoins = [];
-      let packets = [];
-
-      let eoc = false;
-      let c = 0;
-      while(eoc == false){
-        let pack = [];
-        for(let p = 0; p < 40; p++){
-          pack.push(params.coins[c]);
-          c++;
-          if(c >= amountNotes){
-            eoc = true;
-            break;
-          }
-        }
-        packetscoins.push(pack);
-      }
+    let chcrc32 = this._crc32(challange, 0, 12);
+    let guid = this._generatePan();
+    let times = new Date(Date.now());
+    let tags = this._getObjectMemo(memo, from); // Assemble input data for each Raida Server
 
 
-
-      let memo = 'memo' in params ? params['memo'] : "Send";
-      let from = "SkyVaultJS";
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-
-      let chcrc32 = this._crc32(challange, 0, 12);
-
-      let guid = this._generatePan();
-
-      let times = new Date(Date.now());
-
-      let tags = this._getObjectMemo(guid, memo, amount, from); // Assemble input data for each Raida Server
-
-
-      let ab, d;
-      for(let u = 0; u < packetscoins.length; u++){
-        let rqdata = [];
-        let packetsize = 93;
-        if(u == 0) packetsize += 22;
-        packetsize += 19 * packetscoins[u].length;
-        if(u+1 == packetscoins.length) packetsize += 2;
+    let ab, d;
+    for (let u = 0; u < packetscoins.length; u++) {
+      let rqdata = [];
+      let packetsize = 93;
+      if (u == 0) packetsize += 22;
+      packetsize += 19 * packetscoins[u].length;
+      if (u + 1 == packetscoins.length) packetsize += 2;
       for (let i = 0; i < this._totalServers; i++) {
         ab = new ArrayBuffer(packetsize);
         d = new DataView(ab); //rqdata.push(ab)
-  if(u+1 == packetscoins.length){
-        d.setUint8(ab.byteLength - 1, 0x3e);
-        d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-  }
+        if (u + 1 == packetscoins.length) {
+          d.setUint8(ab.byteLength - 1, 0x3e);
+          d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+        }
 
-          //header in first packet
-  if(u==0){
+        //header in first packet
+        if (u == 0) {
           d.setUint8(2, i); //raida id
 
           d.setUint8(5, 100); //command deposit
@@ -2242,53 +1619,53 @@ while(!eof){
           d.setUint8(15, packetscoins.length); //udp number
 
 
-                  for (let x = 0; x < 12; x++) {
-                    d.setUint8(22 + x, challange[x]);
-                  }
+          for (let x = 0; x < 12; x++) {
+            d.setUint8(22 + x, challange[x]);
+          }
 
-                  d.setUint32(34, chcrc32); //body
-                  for (let j = 0; j < packetscoins[u].length; j++) {
-                    let coin = packetscoins[u][j];
+          d.setUint32(34, chcrc32); //body
+          for (let j = 0; j < packetscoins[u].length; j++) {
+            let coin = packetscoins[u][j];
 
-                    if ('an' in coin) {
-                      for (let x = 0; x < coin.an.length; x++) {
-                        if (coin.an[x] == null) coin.an[x] = this._generatePan();
-                      }
-                    }
+            if ('an' in coin) {
+              for (let x = 0; x < coin.an.length; x++) {
+                if (coin.an[x] == null) coin.an[x] = this._generatePan();
+              }
+            }
 
-                    if (!this._validateCoin(coin)) {
-                      return this._getError("Invalid coin. Idx " + j);
-                    }
-                  d.setUint32(38 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+            if (!this._validateCoin(coin)) {
+              return this._getError("Invalid coin. Idx " + j);
+            }
+            d.setUint32(38 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
 
-                  for (let x = 0; x < 16; x++) {
-                    d.setUint8(38 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
-                  }
-                }
+            for (let x = 0; x < 16; x++) {
+              d.setUint8(38 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+            }
+          }
 
-                d.setUint32(38 + amountNotes * 19, to << 8); //owner
+          d.setUint32(38 + amountNotes * 19, to << 8); //owner
 
-                for (let x = 0; x < 16; x++) {
-                  d.setUint8(41 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
-                } //transaction guid
+          for (let x = 0; x < 16; x++) {
+            d.setUint8(41 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
+          } //transaction guid
 
 
-                d.setUint8(57 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
+          d.setUint8(57 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
 
-                d.setUint8(58 + amountNotes * 19, times.getUTCMonth()+1); //month
+          d.setUint8(58 + amountNotes * 19, times.getUTCMonth() + 1); //month
 
-                d.setUint8(59 + amountNotes * 19, times.getUTCDate()); //day
+          d.setUint8(59 + amountNotes * 19, times.getUTCDate()); //day
 
-                d.setUint8(60 + amountNotes * 19, times.getUTCHours()); //hour
+          d.setUint8(60 + amountNotes * 19, times.getUTCHours()); //hour
 
-                d.setUint8(61 + amountNotes * 19, times.getUTCMinutes()); //minute
+          d.setUint8(61 + amountNotes * 19, times.getUTCMinutes()); //minute
 
-                d.setUint8(62 + amountNotes * 19, times.getUTCSeconds()); //second
+          d.setUint8(62 + amountNotes * 19, times.getUTCSeconds()); //second
 
-  } else {
+        } else {
 
           for (let x = 0; x < 12; x++) {
-            d.setUint8( x, challange[x]);
+            d.setUint8(x, challange[x]);
           }
 
           d.setUint32(12, chcrc32); //body
@@ -2304,138 +1681,66 @@ while(!eof){
             if (!this._validateCoin(coin)) {
               return this._getError("Invalid coin. Idx " + j);
             }
-          d.setUint32(16 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+            d.setUint32(16 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+
+            for (let x = 0; x < 16; x++) {
+              d.setUint8(16 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+            }
+          }
+
+          d.setUint32(16 + amountNotes * 19, to << 8); //owner
 
           for (let x = 0; x < 16; x++) {
-            d.setUint8(16 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
-          }
+            d.setUint8(19 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
+          } //transaction guid
+
+
+          d.setUint8(35 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
+
+          d.setUint8(36 + amountNotes * 19, times.getUTCMonth() + 1); //month
+
+          d.setUint8(37 + amountNotes * 19, times.getUTCDate()); //day
+
+          d.setUint8(38 + amountNotes * 19, times.getUTCHours()); //hour
+
+          d.setUint8(39 + amountNotes * 19, times.getUTCMinutes()); //minute
+
+          d.setUint8(40 + amountNotes * 19, times.getUTCSeconds()); //second
         }
-
-        d.setUint32(16 + amountNotes * 19, to << 8); //owner
-
-        for (let x = 0; x < 16; x++) {
-          d.setUint8(19 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
-        } //transaction guid
-
-
-        d.setUint8(35 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
-
-        d.setUint8(36 + amountNotes * 19, times.getUTCMonth()+1); //month
-
-        d.setUint8(37 + amountNotes * 19, times.getUTCDate()); //day
-
-        d.setUint8(38 + amountNotes * 19, times.getUTCHours()); //hour
-
-        d.setUint8(39 + amountNotes * 19, times.getUTCMinutes()); //minute
-
-        d.setUint8(40 + amountNotes * 19, times.getUTCSeconds()); //second
-  }
 
         rqdata.push(ab);
       }
-       packets.push(rqdata);
-  }
-      await this.waitForSockets();
-  // Launch Requests
-  let rqs;
-  for(let q in packets)
+      packets.push(rqdata);
+    }
+    await this.waitForSockets();
+    // Launch Requests
+    let rqs;
+    for (let q in packets)
       rqs = this._launchRequests("send", packets[q], callback);
 
-      let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
-        result.transaction_id = guid;
-        if (!('status' in result) || result.status != 'done') return result;
-        /*
-              let sns = []
-              for (let sn in result.result) {
-                let cr = result.result[sn]
-                if (cr.result == this.__errorResult) {
-                  console.log("adding to send again " +sn)
-                  sns.push(sn)
-                }
-              }
-
-              // Need to call SendAgain
-              if (sns.length > 0) {
-                console.log("Need to call sendagain")
-                let nrqdata = []
-                for (let i = 0; i < this._totalServers; i++) {
-                  nrqdata.push({
-                    b : 't',
-                    sns: [],
-                    nns: [],
-                    ans: [],
-                    pans: [],
-                    dn: [],
-                    to_sn: to,
-                    tag: tags[i]
-                  })
-                  for (let j = 0; j < params['coins'].length; j++) {
-                    let coin = params['coins'][j]
-
-                    if (!sns.includes(coin.sn))
-                      continue
-
-                    nrqdata[i].sns.push(coin.sn)
-                    nrqdata[i].nns.push(coin.nn)
-                    nrqdata[i].ans.push(coin.an[i])
-                    nrqdata[i].pans.push(coin.pan[i])
-                    nrqdata[i].denomination.push(this.getDenomination(coin.sn))
-                  }
-                }
-
-                let rqs = this._launchRequests("sendagain", nrqdata, 'POST', callback)
-                let coins = new Array(sns.length)
-                sns.forEach((value, idx) => {
-                  coins[idx] = { sn: value, nn: this.options.defaultCoinNn }
-                })
-
-                let response = this._getGenericBriefMainPromise(rqs, coins).then(response => {
-                  // Merging results from 'send' and 'send_again'
-                  result.errorNotes -= sns.length
-                  result.authenticNotes += response.authenticNotes
-                  result.counterfeitNotes += response.counterfeitNotes
-                  result.frackedNotes += response.frackedNotes
-                  result.errorNotes += response.errorNotes
-
-                  for (let sn in response.result) {
-                    result.result[sn] = response.result[sn]
-                  }
-
-                  this.addBreadCrumbReturn("apiSend", result)
-                  return result
-                })
-
-                return response
-              }*/
-
-        this.addBreadCrumbReturn("apiSend", result);
+    let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
+      result.transaction_id = guid;
+      if (!('status' in result) || result.status != 'done')
         return result;
-      });
+      return result;
+    });
 
-      let pm = new Promise((resolve, reject) => {
-        setTimeout(() => {//this._fixTransfer()
-        }, 500);
-      });
-      return rv;
-    }
+    let pm = new Promise((resolve, reject) => {
+      setTimeout(() => {//this._fixTransfer()
+      }, 500);
+    });
+    return rv;
+  }
 
   // Receive
   async apiReceive(params, callback = null) {
-    this.addBreadCrumbEntry("apiReceive", params)
-
     let coin = this._getCoinFromParams(params)
     if (coin == null)
       return this._getError("Failed to parse coin from params")
 
-/*
-    let changeMakerId = this.options.changeMakerId
-    if ('changeMakerId' in params) {
-      changeMakerId = params['changeMakerId']
-    }
-*/
     let gcRqs = await this._getCoins(coin, callback)
     if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
 
     let sns = Object.keys(gcRqs.coins)
 
@@ -2450,35 +1755,10 @@ while(!eof){
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
     let coinsToReceive = rvalues.coins
-    /*
-    let changeCoin = rvalues.extra
-
-    let changeRequired
-    if (changeCoin !== 0) {
-      let csns = await this.apiBreakInBank(rvalues.extra, coin, callback)
-      if (csns.length == 0) {
-        return  this._getError("Failed to break in bank")
-      }
-
-      coinsToReceive = coinsToReceive.concat(csns)
-
-      // extra will tell us if we need change
-      rvalues = this._pickCoinsAmountFromArrayWithExtra(coinsToReceive, params.amount)
-      coinsToReceive = rvalues.coins
-      changeCoin = rvalues.extra
-      if (changeCoin !== 0) {
-        return  this._getError("Failed to pick coins after break in bank")
-      }
-
-      changeRequired = true
-    } else {
-      changeRequired = false
-    }
-    */
 
     let rqdata = []
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    let chcrc32 = this._crc32(challange,0,12)
+    let chcrc32 = this._crc32(challange, 0, 12)
     let nns = new Array(coinsToReceive.length)
     nns.fill(this.options.defaultCoinNn)
     let guid = this._generatePan();
@@ -2489,53 +1769,53 @@ while(!eof){
       // Assemble input data for each Raida Server
       let ab, d;
       let seed
-      if('seed' in params){
+      if ('seed' in params) {
         seed = params['seed']
       }
       for (let i = 0; i < this._totalServers; i++) {
-        if(seed != null)
-        coin.pan[i] = md5(i.toString()+seed)
+        if (seed != null)
+          coin.pan[i] = md5(i.toString() + seed)
         ab = new ArrayBuffer(35 + (3 * coinsToReceive.length) + 58 + 50 + 5);
         d = new DataView(ab); //
 
         d.setUint8(ab.byteLength - 1, 0x3e);
         d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-          d.setUint8(2, i); //raida id
-          d.setUint8(5, 104); //command withdraw
-          d.setUint8(8, 0x01); //coin id
-          d.setUint8(12, 0xAB); // echo
-          d.setUint8(13, 0xAB); // echo
-          d.setUint8(15, 0x01)//udp number; //udp number
-          //body
-          for (let x = 0; x < 12; x++) {
-            d.setUint8(22 + x, challange[x])
-          }
-          d.setUint32(34, chcrc32)
-          d.setUint32(38, coin.sn << 8); //owner
+        d.setUint8(2, i); //raida id
+        d.setUint8(5, 104); //command withdraw
+        d.setUint8(8, 0x01); //coin id
+        d.setUint8(12, 0xAB); // echo
+        d.setUint8(13, 0xAB); // echo
+        d.setUint8(15, 0x01)//udp number; //udp number
+        //body
+        for (let x = 0; x < 12; x++) {
+          d.setUint8(22 + x, challange[x])
+        }
+        d.setUint32(34, chcrc32)
+        d.setUint32(38, coin.sn << 8); //owner
 
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(41 +  x, parseInt(coin.an[i].substr(x * 2, 2), 16));
-          }
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+        }
 
-          for (let j = 0; j < coinsToReceive.length; j++) d.setUint32(57 + j * 3, coinsToReceive[j] << 8);
+        for (let j = 0; j < coinsToReceive.length; j++) d.setUint32(57 + j * 3, coinsToReceive[j] << 8);
 
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(57 + coinsToReceive.length * 3 + x, parseInt(coin.pan[i].substr(x * 2, 2), 16));
-          } //pan generator
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(57 + coinsToReceive.length * 3 + x, parseInt(coin.pan[i].substr(x * 2, 2), 16));
+        } //pan generator
 
 
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
-          } //transaction guid
-          d.setUint8(89 + coinsToReceive.length * 3, times.getUTCFullYear() - 2000)//year
-          d.setUint8(90 + coinsToReceive.length * 3, times.getUTCMonth() + 1)//month
-          d.setUint8(91 + coinsToReceive.length * 3, times.getUTCDate())//day
-          d.setUint8(92 + coinsToReceive.length * 3, times.getUTCHours())//hour
-          d.setUint8(93 + coinsToReceive.length * 3, times.getUTCMinutes())//minute
-          d.setUint8(94 + coinsToReceive.length * 3, times.getUTCSeconds())//second
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(73 + coinsToReceive.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
+        } //transaction guid
+        d.setUint8(89 + coinsToReceive.length * 3, times.getUTCFullYear() - 2000)//year
+        d.setUint8(90 + coinsToReceive.length * 3, times.getUTCMonth() + 1)//month
+        d.setUint8(91 + coinsToReceive.length * 3, times.getUTCDate())//day
+        d.setUint8(92 + coinsToReceive.length * 3, times.getUTCHours())//hour
+        d.setUint8(93 + coinsToReceive.length * 3, times.getUTCMinutes())//minute
+        d.setUint8(94 + coinsToReceive.length * 3, times.getUTCSeconds())//second
 
-          d.setUint8(95 + coinsToReceive.length * 3, 1);
-          rqdata.push(ab)
+        d.setUint8(95 + coinsToReceive.length * 3, 1);
+        rqdata.push(ab)
       } // Launch Requests
 
       // Launch Requests
@@ -2544,7 +1824,7 @@ while(!eof){
 
       let coins = new Array(coinsToReceive.length)
       coinsToReceive.forEach((value, idx) => {
-        coins[idx] = { sn: value, nn: this.options.defaultCoinNn }
+        coins[idx] = {sn: value, nn: this.options.defaultCoinNn}
       })
 
       response = await this._getGenericMainPromise(rqs, coins)
@@ -2552,119 +1832,29 @@ while(!eof){
       response.changeCoinSent = 0
       //response.changeRequired = false
       for (let k in response.result) {
-        if(!('an' in response.result[k]))
-        response.result[k].an = [];
-        for (let i = 0; i < 25; i++){
-        let newpan = md5(i.toString() + response.result[k]['sn'].toString() + coin.pan[i]);
-        response.result[k].an[i] = newpan;
-      };
+        if (!('an' in response.result[k]))
+          response.result[k].an = [];
+        for (let i = 0; i < 25; i++) {
+          let newpan = md5(i.toString() + response.result[k]['sn'].toString() + coin.pan[i]);
+          response.result[k].an[i] = newpan;
+        };
       }
 
-      this.addBreadCrumbReturn("apiReceive", response)
       return response
-    //} else if (changeCoin === 0) {
-    //  return this._getError("No coins to receive")
+      //} else if (changeCoin === 0) {
+      //  return this._getError("No coins to receive")
     } else {
       response = {
         totalNotes: 0, authenticNotes: 0, counterfeitNotes: 0, errorNotes: 0, frackedNotes: 0, result: {}
       }
 
-      this.addBreadCrumbReturn("apiReceive", response)
       return response
     }
 
   }
 
-
-  // BreakInBank
-  async apiBreakInBank(extraSn, idcc, callback) {
-    this.addBreadCrumbEntry("apiBreakInBank", {'extraSn' : extraSn, 'idcc' : idcc})
-
-    let csns = []
-
-    let scResponse = await this.showChange({
-      nn: this.options.defaultCoinNn,
-      sn: this.options.changeMakerId,
-      denomination: this.getDenomination(extraSn)
-    }, callback)
-
-    let d100s = Object.keys(scResponse.d100)
-    let d25s = Object.keys(scResponse.d25)
-    let d5s = Object.keys(scResponse.d5)
-    let d1s = Object.keys(scResponse.d1)
-
-    let vsns
-    switch (this.getDenomination(extraSn)) {
-      case 250:
-        vsns = this._get250E(d100s, d25s, d5s, d1s)
-        break;
-      case 100:
-        vsns = this._get100E(d25s, d5s, d1s)
-        break;
-      case 25:
-        vsns = this._get25B(d5s, d1s)
-        break;
-      case 5:
-        vsns = this._getA(d1s, 5)
-        break;
-      default:
-        console.log("Failed to get denomination for coin " + extraSn)
-        return csns
-    }
-
-    // Assemble input data for each Raida Server
-    let rqdata = []
-
-    let ab, d;
-		for (let i = 0; i < this._totalServers; i++) {
-		ab = new ArrayBuffer(35 + 19 +6 + (3*vsns.length) + 5);
-		d = new DataView(ab);
-		 // Trailing chars
-			d.setUint8(2, i) //raida id
-			d.setUint8(5, 123);//command break in bank
-			d.setUint8(8, 0x00);//coin id
-			d.setUint8(12, 0xAB);// echo
-			d.setUint8(13, 0xAB);// echo
-			d.setUint8(15, 0x01)//udp number;//udp number
-			d.setUint32(38, idcc.sn<<8)
-			for (let x = 0; x < 16; x++) {
-				d.setUint8(38+(3+x), parseInt(idcc.an[i].substr(x*2, 2), 16))
-			}
-      d.setUint32(57, extraSn<<8)
-      d.setUint32(60, this.options.changeMakerId<<8)
-      for (let j = 0; j < vsns.length; j++) {
-        d.setUint32(63 + j * 3, vsns[j] << 8);
-      }
-      d.setUint8(ab.byteLength -1, 0x3e);
-  			d.setUint8(ab.byteLength -2, 0x3e);
-			rqdata.push(ab)
-		}
-await this.waitForSockets()
-    let response = await this._launchRequests("break_in_bank", rqdata, callback)
-    let p = 0
-    let rv = await this._parseMainPromise(response, 0, {}, response => {
-      if (response == "error" || response == "network")
-        return
-        let dView = new DataView(response);
-        if (dView.getUint8(2) === 250) {
-        p++
-      }
-    })
-
-    if (p >= 17) {
-      this.addBreadCrumbReturn("apiBreakInBank", vsns)
-      return vsns
-    }
-
-    console.log("Not enough positive responses from RAIDA: " + p)
-    return []
-
-  }
-
   // Used to pay money to a merchant
   async apiPay(params, callback = null) {
-    this.addBreadCrumbEntry("apiPay", params)
-
     if (!('sender_name' in params))
       return this._getError("Sender Name is required")
 
@@ -2686,6 +1876,9 @@ await this.waitForSockets()
     if (!('amount' in params))
       return this._getError("Invalid params. Amount is not defined")
 
+    console.log("hhh0")
+    console.log(params)
+    console.log(params.guid)
     let guid = ""
     if (!('guid' in params)) {
       guid = this._generatePan()
@@ -2697,6 +1890,9 @@ await this.waitForSockets()
     }
 
 
+    console.log("hhh1")
+    console.log(params)
+    console.log(params.guid)
 
     let merchant_address = params.to
     let reportUrl = await this._resolveDNS(merchant_address, "TXT")
@@ -2718,27 +1914,22 @@ await this.waitForSockets()
       return this._getError("Ivalid URL in TXT record")
     }
 
-    let meta = ""
-    //meta += "sender_address = \"" + from + "\"\n"
-    meta += "memo = \"" + memo + "\"\n"
-    //meta = btoa(meta)
-
-    params.memo = guid
-
     let rv = this.apiTransfer(params, callback).then(response => {
       if (response.status == "error")
         return response
 
+      console.log("g=" + guid)
+
       response.guid = guid
       let rAx = axios.create()
       let mParams = {
-        'merchant_skywallet' : merchant_address,
+        'amount': params.amount + "",
+        'merchant_skywallet': merchant_address,
         'sender_address': sender_address,
-        'memo' : meta,
-        'guid' : guid
+        'guid': guid
       }
       let options = {
-        timeout : this.options.timeout
+        timeout: this.options.timeout
       }
       options.params = mParams
 
@@ -2759,222 +1950,8 @@ await this.waitForSockets()
   }
 
 
-  // BillPay
-  async apiBillPay(params, callback = null) {
-    this.addBreadCrumbEntry("apiBillPay", params)
-
-    if (!('coin' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin is missing")
-
-    let coin = params['coin']
-    if (!this._validateCoin(coin))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-
-    let guid = this._generatePan()
-    if ('guid' in params) {
-      guid = params['guid']
-      if (!this._validateGuid(guid)) {
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_GUID, "Failed to validate GUID")
-      }
-    }
-
-    let paydata = {}
-    let v = this._getBillPayCachedObject(guid)
-    if (v != null) {
-      paydata = v
-    } else {
-      if (!('paydata' in params))
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_MISSING_PAYDATA, "Paydata is missing")
-
-      let id = this.genene
-      if (!('paydata' in params))
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_MISSING_PAYDATA, "Paydata is missing")
-
-      let paydataArray = params.paydata.split("\n")
-      for (let i = 0; i < paydataArray.length; i++) {
-        let item = paydataArray[i]
-        let line = i + 1
-
-        let els = item.split(",")
-        let method = els[0].trim()
-        let fformat = els[1].trim()
-        if (method != "TransferToSkywallet")
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_INVALID_METHOD, "Invalid method. Line " + line)
-
-        if (fformat != "stack")
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_INVALID_FILE_FORMAT, "Only stack format supported. Line " + line)
-
-
-        let amount = els[2].trim()
-        if (!Number.isInteger(amount))
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_INVALID_AMOUNT, "Incorrect Amount. Line " + line)
-
-        try {
-          amount = parseInt(amount)
-        } catch (e) {
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_INVALID_AMOUNT, "Incorrect Amount. Line " + line)
-        }
-
-        let d1 = els[3].trim()
-        let d5 = els[4].trim()
-        let d25 = els[5].trim()
-        let d100 = els[6].trim()
-        let d250 = els[7].trim()
-
-        if (amount < 0 || d1 != 0 || d5 != 0 || d25 != 0 || d100 != 0 || d250 != 0) {
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_INVALID_AMOUNT, "Incorrect Amount. Amount must be positive and Denominations must be zero. Line " + line)
-        }
-
-        let to = els[8].trim()
-        let memo = els[9].trim()
-        let state = els[11].trim()
-        if (state != "ready" && state != "skip")
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_INVALID_STATUS, "Invalid status. Line " + line)
-
-        if (to in paydata)
-          return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_PAYDATA_DUPLICATED_VALUE, "Duplicated value for " + to + ". Line " + line)
-
-        paydata[to] = {
-          'amount' : amount,
-          'state' : state,
-          'memo' : memo
-        }
-      }
-    }
-
-    let ok, errors
-
-    let rv = {
-      code: SkyVaultJS.ERR_NO_ERROR,
-      amount: 0,
-      recipients: [],
-      guid: guid
-    }
-
-    for (let to in paydata) {
-      let item = paydata[to]
-      let recipient = {
-        "address" : to,
-        "status" : "ready"
-      }
-      let state = item.state
-      if (state == "skip" || state == "sent") {
-        recipient.status = state
-        rv.recipients.push(recipient)
-        continue
-      }
-
-      let params = {
-        'sn' : coin.sn,
-        'an' : coin.an,
-        'to' : to,
-        'amount' : item.amount,
-        'memo' : item.memo
-      }
-
-      let lrv = await this.apiTransfer(params, callback)
-      if (lrv.status == "error") {
-        recipient.status = "error"
-        recipient.message = lrv.errorText
-        paydata[to].state = "ready"
-        rv.recipients.push(recipient)
-        rv.code = SkyVaultJS.ERR_BILLPAY_SENT_PARTIALLY
-        continue
-      }
-
-      paydata[to].state = "sent"
-      recipient.status = "sent"
-      recipient.message = "Success"
-      rv.amount += item.amount
-      rv.recipients.push(recipient)
-    }
-
-    this._saveBillPayCachedObject(guid, paydata)
-    return rv
-
-  }
-
-  apiBillPayList(params) {
-    if (!('guid' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_GUID, "GUID is required")
-
-    let guid = params.guid
-    if (!this._validateGuid(guid))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_GUID, "Failed to validate GUID")
-
-    let obj = this._getBillPayCachedObject(guid)
-    if (obj == null)
-      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_RECORD_NOT_FOUND, "BillPay List not found")
-
-    let rv = {
-      code: SkyVaultJS.ERR_NO_ERROR,
-      amount: 0,
-      amounttotal: 0,
-      guid: guid,
-      recipients: []
-    }
-
-    rv.recipients = obj
-    for (let to in obj) {
-      let item = obj[to]
-      if (item.state == "sent")
-        rv.amount += item.amount
-
-      rv.amounttotal += item.amount
-    }
-
-
-    return rv
-  }
-
-  _saveBillPayCachedObject(guid, paydata) {
-    let key = this.options.billpayKey
-    let v = localStorage.getItem(key)
-    if (v == null)
-      return
-
-    let obj = null
-    try {
-      obj = JSON.parse(v)
-    } catch(e) {
-      return null
-    }
-
-    obj[guid] = paydata
-
-    v = JSON.stringify(obj)
-    console.log(v)
-
-    localStorage.setItem(key, v)
-  }
-
-  _getBillPayCachedObject(guid) {
-    let key = this.options.billpayKey
-
-    let v = localStorage.getItem(key)
-    if (v == null) {
-      let obj = JSON.stringify({})
-      localStorage.setItem(key, obj)
-      return null
-    }
-
-    let obj = null
-    try {
-      obj = JSON.parse(v)
-    } catch(e) {
-      return null
-    }
-
-    if (!(guid in obj))
-      return null
-
-    return obj[guid]
-  }
-
   // Transfer
   async apiTransfer(params, callback = null) {
-    this.addBreadCrumbEntry("apiTransfer", params)
-
     this._rarr = {}
 
     let coin = this._getCoinFromParams(params)
@@ -2990,19 +1967,18 @@ await this.waitForSockets()
     if (to == null) {
       return this._getError("Failed to resolve DNS name: " + params.to)
     }
-/*
 
-    let changeMakerId = this.options.changeMakerId
-    if ('changeMakerId' in params) {
-      changeMakerId = params['changeMakerId']
-    }
-*/
     if (!('amount' in params)) {
       return this._getError("Invalid params. Amount is not defined")
     }
 
     let memo = 'memo' in params ? params['memo'] : "Transfer from SN#" + coin.sn
     let guid
+
+    console.log("hhh3")
+    console.log(params)
+    console.log(params.guid)
+
     if (!('guid' in params)) {
       guid = this._generatePan()
     } else {
@@ -3016,75 +1992,30 @@ await this.waitForSockets()
     else
       from = "SN " + coin.sn
 
-    let tags = this._getObjectMemo(guid, memo, params.amount, from)
+    console.log("hhh4")
+    console.log(params)
+    console.log(params.guid)
+    let tags = this._getObjectMemo(memo, from)
 
     let gcRqs = await this._getCoins(coin, callback)
     if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
 
     let sns = Object.keys(gcRqs.coins)
     let nns = new Array(sns.length)
     nns.fill(this.options.defaultCoinNn)
     if (params.amount > this._calcAmount(sns)) {
-      return  this._getError("Not enough cloudcoins")
+      return this._getError("Not enough cloudcoins")
     }
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
     let coinsToSend = rvalues.coins
-    //let changeCoin = rvalues.extra
     if (coinsToSend.length > this.options.maxCoins) {
-      return  this._getError("You can't transfer more than " + this.options.maxCoins + " notes at a time")
+      return this._getError("You can't transfer more than " + this.options.maxCoins + " notes at a time")
     }
-/*
-    let changeRequired
-    if (changeCoin !== 0) {
-      let csns = await this.apiBreakInBank(rvalues.extra, coin, callback)
-      if (csns.length == 0) {
-        return  this._getError("Failed to break in bank")
-      }
 
-      coinsToSend = coinsToSend.concat(csns)
-      rvalues = this._pickCoinsAmountFromArrayWithExtra(coinsToSend, params.amount)
-      coinsToSend = rvalues.coins
-      changeCoin = rvalues.extra
-      if (changeCoin !== 0) {
-        return  this._getError("Failed to pick coins after break in bank")
-      }
-      if (coinsToSend.length > this.options.maxCoins) {
-        return  this._getError("You can't transfer more than " + this.options.maxCoins + " notes at a time")
-      }
-
-      changeRequired = true
-    } else {
-      changeRequired = false
-    }
-    */
-    let batch = this.options.maxCoinsPerIteraiton
-
-    let iterations = Math.floor(coinsToSend.length / batch)
-
-    let localCoinsToSend
-    let b = 0
     let response = {}
-    /*
-    for (; b < iterations; b++) {
-      from = b * batch
-      let tol = from + batch
-      localCoinsToSend = coinsToSend.slice(from,tol)
-      let lr = await this._doTransfer(coin, to, tags, localCoinsToSend, callback, b)
-      response = this._mergeResponse(response, lr)
-    }
-
-    from = b * batch
-    if (from < coinsToSend.length) {
-      let tol = coinsToSend.length
-      localCoinsToSend = coinsToSend.slice(from,tol)
-      let lr = await this._doTransfer(coin, to, tags, localCoinsToSend, callback, iterations)
-      response = this._mergeResponse(response, lr)
-
-    }
-    */
-response = await this._doTransfer(coin, to, tags, coinsToSend, callback)
+    response = await this._doTransfer(coin, params.guid, to, tags, coinsToSend, callback)
     // Assemble input data for each Raida Server
     //response.changeCoinSent = changeRequired
     response.code = SkyVaultJS.ERR_NO_ERROR
@@ -3095,7 +2026,6 @@ response = await this._doTransfer(coin, to, tags, coinsToSend, callback)
       }, 500)
     })
 
-    this.addBreadCrumbReturn("apiTransfer", response)
     return response
   }
 
@@ -3103,131 +2033,107 @@ response = await this._doTransfer(coin, to, tags, coinsToSend, callback)
     return Math.floor(Math.random() * Math.floor(max));
   }
 
-  async _fixTransfer() {
-    this.addBreadCrumbEntry("_fixTransfer")
-
-    let corner = this._getRandomInt(4) + 1
-
-    let rqdata = new Array(this._totalServers)
-    let servers = []
-    for (let raidaIdx in this._rarr) {
-      let sns = this._rarr[raidaIdx]
-      rqdata[raidaIdx] = {
-        'corner' : corner,
-        'sn' : sns
-      }
-
-      servers.push(raidaIdx)
-    }
-await this.waitForSockets()
-    let pm = this._launchRequests("sync/fix_transfer", rqdata, 'GET', () => {}, servers)
-
-    return pm
-
-  }
-
-  async _syncOwnersAddDelete(coin, sns, servers, mode){
-//mode = 0 for add, 2 for delete
+  async _syncOwnersAddDelete(coin, sns, servers, mode) {
+    //mode = 0 for add, 2 for delete
     if (!this._validateCoin(coin)) {
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-}
-      if (!Array.isArray(sns)) {
-        return this._getError("Invalid input data. Serial Numbers must be an array")
-      }
+    }
+    if (!Array.isArray(sns)) {
+      return this._getError("Invalid input data. Serial Numbers must be an array")
+    }
 
-      if(mode != 0 && mode != 2){
-        return this._getError("incorrect value for MODE. must be either 0 or 2");
-      }
+    if (mode != 0 && mode != 2) {
+      return this._getError("incorrect value for MODE. must be either 0 or 2");
+    }
 
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-      let chcrc32 = this._crc32(challange,0,12)
-      let rqdata = [];
-      let ab, d;
-      for (let i = 0; i < this._totalServers; i++) {
-          ab = new ArrayBuffer(35 + 24 + 3* sns.length );
-          d = new DataView(ab); //rqdata.push(ab)
-           // Trailing chars
-          d.setUint8(2, i); //raida id
-          d.setUint8(5, 150 + mode);//command sync add or delete(if mode = 2)
-          d.setUint8(8, 0x01); //coin id
-          d.setUint8(12, 0xAB); // echo
-          d.setUint8(13, 0xAB); // echo
-          d.setUint8(15, 0x01); //udp number
-                //body
-                for (let x = 0; x < 12; x++) {
-                  d.setUint8(22 + x, challange[x])
-                }
-                d.setUint32(34, chcrc32)
-          d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
-          }
-          for(let y = 0; y <sns.length; y++){
-            d.setUint32(57 + y *3,sns[y] << 8)
-          }
-          d.setUint8(ab.byteLength - 1, 0x3e);
-          d.setUint8(ab.byteLength - 2, 0x3e);
-          rqdata.push(ab)
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange, 0, 12)
+    let rqdata = [];
+    let ab, d;
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(35 + 24 + 3 * sns.length);
+      d = new DataView(ab); //rqdata.push(ab)
+      // Trailing chars
+      d.setUint8(2, i); //raida id
+      d.setUint8(5, 150 + mode);//command sync add or delete(if mode = 2)
+      d.setUint8(8, 0x01); //coin id
+      d.setUint8(12, 0xAB); // echo
+      d.setUint8(13, 0xAB); // echo
+      d.setUint8(15, 0x01); //udp number
+      //body
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
+      d.setUint32(38, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(41 + x, parseInt(coin.an[i].substr(x * 2, 2), 16));
+      }
+      for (let y = 0; y < sns.length; y++) {
+        d.setUint32(57 + y * 3, sns[y] << 8)
+      }
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e);
+      rqdata.push(ab)
+    }
+    await this.waitForSockets()
+    let pm = this._launchRequests("sync/fix_transfer", rqdata, null, servers)
+
+    let modestring = "add";
+    if (mode == 2)
+      modestring = "delete";
+
+    let rv = {
+      status: 'done',
+      mode: modestring,
+      code: SkyVaultJS.ERR_NO_ERROR,
+      res_status_code: 0,
+      details: []
+    };
+    let needFix = false;
+    let pownstring = [];
+    let mainPromise = pm.then(response => {
+      this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
+        if (serverResponse === "error" || serverResponse === "network") {
+          rv.status = 'error'
+          rv.code = SkyVaultJS.ERR_HAS_ERROR
+          pownstring[i] = "e"
+          return;
         }
-        await this.waitForSockets()
-        let pm = this._launchRequests("sync/fix_transfer", rqdata,  null, servers)
+        let dView = new DataView(serverResponse);
 
-        let modestring = "add";
-        if(mode == 2)
-        modestring = "delete";
+        rv.res_status_code = dView.getUint8(2)
+        if (dView.getUint8(2) == 64) {
+          rv.status = "failed authentication (fracked)";
+          rv.code = SkyVaultJS.ERR_DETECT_FAILED;
+          pownstring[i] = "f";
+          needFix = true;
+          return;
+        }
 
-            let rv = {
-              status: 'done',
-              mode: modestring,
-              code: SkyVaultJS.ERR_NO_ERROR,
-              res_status_code: 0,
-              details: []
-            };
-            let needFix = false;
-            let pownstring = [];
-            let mainPromise = pm.then(response => {
-              this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
-                if (serverResponse === "error" || serverResponse === "network"){
-                  rv.status = 'error'
-                  rv.code = SkyVaultJS.ERR_HAS_ERROR
-                  pownstring[i] = "e"
-                  return;
-                }
-                let dView = new DataView(serverResponse);
+        if (dView.getUint8(2) != 250 && dView.getUint8(2) != 241) {
+          rv.status = "error";
+          rv.code = SkyVaultJS.ERR_HAS_ERROR;
+          pownstring[i] = "e";
+          needFix = true;
+          return;
+        }
+        pownstring[i] = "p";
+      });
+      if (needFix) {
+        for (let p = 0; p < 25; p++) {
+          if (pownstring[p] == null)
+            pownstring[p] = "p";
+        }
+        pownstring = pownstring.join("");
+        coin.pownstring = pownstring;
+        coin.result = this.__frackedResult;
+        let fpm = this.apiFixfracked([coin])
+      }
+      return rv;
 
-                rv.res_status_code = dView.getUint8(2)
-                if(dView.getUint8(2) == 64){
-                  rv.status = "failed authentication (fracked)";
-                  rv.code = SkyVaultJS.ERR_DETECT_FAILED;
-                  pownstring[i] = "f";
-                  needFix = true;
-                  return;
-                }
-
-                if (dView.getUint8(2) != 250 && dView.getUint8(2) != 241) {
-                  rv.status = "error";
-                  rv.code = SkyVaultJS.ERR_HAS_ERROR;
-                  pownstring[i] = "e";
-                  needFix = true;
-                  return;
-                }
-                pownstring[i] = "p";
-              });
-              if (needFix) {
-                for(let p = 0; p < 25; p++){
-                  if(pownstring[p] == null)
-                  pownstring[p] = "p";
-                }
-                pownstring = pownstring.join("");
-                coin.pownstring = pownstring;
-                coin.result = this.__frackedResult;
-                let fpm = this.apiFixfracked([coin])
-              }
-              this.addBreadCrumbReturn("apiFixTransfer", rv)
-              return rv;
-
-          })
-            return mainPromise;
+    })
+    return mainPromise;
 
   }
 
@@ -3249,333 +2155,175 @@ await this.waitForSockets()
     for (let k in addon.result) {
       response.result[k] = addon.result[k]
     }
-  //  response.result = Object.assign(response.result, addon.result)
+    //  response.result = Object.assign(response.result, addon.result)
 
     return response
 
   }
 
   // Doing actual transfer
-  async _doTransfer(coin, to, tags, coinsToSend, callback, iteration = null) {
-    this.addBreadCrumbEntry("_doTransfer")
-let guid = this._generatePan()
-let times = new Date(Date.now())
-let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-let chcrc32 = this._crc32(challange,0,12)
+  async _doTransfer(coin, guid, to, tags, coinsToSend, callback) {
+    let times = new Date(Date.now())
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange, 0, 12)
     let rqdata = []
-let ab, d
-          for (let i = 0; i < this._totalServers; i++) {
-            ab = new ArrayBuffer(35 + (3 * coinsToSend.length) + 45 + 50 + 5);
-            d = new DataView(ab); //rqdata.push(ab)
+    let ab, d
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(35 + (3 * coinsToSend.length) + 45 + 50 + 5);
+      d = new DataView(ab); //rqdata.push(ab)
 
-            d.setUint8(ab.byteLength - 1, 0x3e);
-            d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-              d.setUint8(2, i); //raida id
-              d.setUint8(5, 108); //command transfer
-              d.setUint8(8, 0x01); //coin id
-              d.setUint8(12, 0xAB); // echo
-              d.setUint8(13, 0xAB); // echo
-              d.setUint8(15, 0x01)//udp number; //udp number
-              for (let x = 0; x < 12; x++) {
-                d.setUint8(22 + x, challange[x])
-              }
-              d.setUint32(34, chcrc32)
-              d.setUint32(38, coin.sn << 8); //owner
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+      d.setUint8(2, i); //raida id
+      d.setUint8(5, 108); //command transfer
+      d.setUint8(8, 0x01); //coin id
+      d.setUint8(12, 0xAB); // echo
+      d.setUint8(13, 0xAB); // echo
+      d.setUint8(15, 0x01)//udp number; //udp number
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
+      d.setUint32(38, coin.sn << 8); //owner
 
-              for (let x = 0; x < 16; x++) {
-                d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
-              }
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+      }
 
-              for (let j = 0; j < coinsToSend.length; j++) d.setUint32(57 + j * 3, coinsToSend[j] << 8);
+      for (let j = 0; j < coinsToSend.length; j++) d.setUint32(57 + j * 3, coinsToSend[j] << 8);
 
-              d.setUint32(57 + coinsToSend.length * 3,to <<8);
+      d.setUint32(57 + coinsToSend.length * 3, to << 8);
 
-              for (let x = 0; x < 16; x++) {
-                d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
-              } //transaction guid
-              d.setUint8(76 + coinsToSend.length * 3, times.getUTCFullYear() - 2000)//year
-              d.setUint8(77 + coinsToSend.length * 3, times.getUTCMonth() + 1)//month
-              d.setUint8(78 + coinsToSend.length * 3, times.getUTCDate())//day
-              d.setUint8(79 + coinsToSend.length * 3, times.getUTCHours())//hour
-              d.setUint8(80 + coinsToSend.length * 3, times.getUTCMinutes())//minute
-              d.setUint8(81 + coinsToSend.length * 3, times.getUTCSeconds())//second
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(60 + coinsToSend.length * 3 + x, parseInt(guid.substr(x * 2, 2), 16));
+      } //transaction guid
+      d.setUint8(76 + coinsToSend.length * 3, times.getUTCFullYear() - 2000)//year
+      d.setUint8(77 + coinsToSend.length * 3, times.getUTCMonth() + 1)//month
+      d.setUint8(78 + coinsToSend.length * 3, times.getUTCDate())//day
+      d.setUint8(79 + coinsToSend.length * 3, times.getUTCHours())//hour
+      d.setUint8(80 + coinsToSend.length * 3, times.getUTCMinutes())//minute
+      d.setUint8(81 + coinsToSend.length * 3, times.getUTCSeconds())//second
 
-              d.setUint8(83 + coinsToSend.length * 3,3);//ty
+      d.setUint8(82 + coinsToSend.length * 3, 3);//ty
 
-            rqdata.push(ab);
-          }
+
+      for (let x = 0; x < tags[i].length; x++) {
+        console.log("r=" + i + " x=" + tags[i][x])
+        d.setUint8(83 + coinsToSend.length * 3 + x, tags[i].charCodeAt(x));//ty
+      }
+
+      let rest = 50 - tags[i].length
+      if (rest > 0) {
+        console.log("adding rest " + rest)
+        for (let x = 0; x < rest; x++) {
+          d.setUint8(83 + coinsToSend.length * 3 + tags[i].length + x, 0)
+        }
+      }
+
+      console.log("i=" + i + " l=" + tags[i].length)
+
+      rqdata.push(ab);
+    }
+
+    //    console.log("stop now")
+    //  return null
 
     // Launch Requests
     await this.waitForSockets()
-    let rqs = this._launchRequests("transfer", rqdata, callback, iteration)
+    let rqs = this._launchRequests("transfer", rqdata, callback)
 
     let coins = new Array(coinsToSend.length)
     coinsToSend.forEach((value, idx) => {
-      coins[idx] = { sn: value, nn: this.options.defaultCoinNn }
+      coins[idx] = {sn: value, nn: this.options.defaultCoinNn}
     })
 
     let response = await this._getGenericBriefMainPromise(rqs, coins)
-    this.addBreadCrumbReturn("_doTransfer", response)
     response.transaction_id = guid
     return response
   }
 
-  async showChange(params, callback = null) {
-    this.addBreadCrumbEntry("showChange", params)
-
-    let { sn, nn, denomination } = params
-    let rqdata = []
-    let seed = this._generatePan().substring(0, 8)
-    let ab, d;
-  		for (let i = 0; i < this._totalServers; i++) {
-  		ab = new ArrayBuffer(35 + 4 + 5);
-  		d = new DataView(ab);
-  		d.setUint8(ab.byteLength -1, 0x3e);
-  			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
-  			d.setUint8(2, i) //raida id
-  			d.setUint8(5, 116);//command show change
-  			d.setUint8(8, 0x00);//coin id
-  			d.setUint8(12, 0xAB);// echo
-  			d.setUint8(13, 0xAB);// echo
-  			d.setUint8(15, 0x01)//udp number;//udp number
-  			d.setUint32(38, sn<<8)
-  			d.setUint8(41, denomination)
-  			rqdata.push(ab)
-  		}
-
-    let nrv = { d1 : {}, d5 : {}, d25 : {}, d100 : {}}
-    await this.waitForSockets()
-    let rqs = this._launchRequests("show_change", rqdata, callback).then(response => {
-      this._parseMainPromise(response, 0, nrv, response => {
-        if (response === "error" || response === "network")
-          return
-        let dView = new DataView(response)
-        let status = dView.getUint8(2);
-        if (status !== 250) {
-          return
-        }
-        let dView2 = new DataView(response, 12)
-
-        if (dView2.byteLength < 3)
-          return
-          let key, dem;
-          let d1 = [];
-          let d5 = [];
-          let d25 = [];
-          let d100 = [];
-          for (let i = 0; i < coins.byteLength / 3; i++) {
-            key = coins.getUint32(i * 3) >>> 8;
-            switch (this.getDenomination(key)) {
-              case 100:
-                d100.push(key)
-                break;
-              case 25:
-                d25.push(key)
-                break;
-              case 5:
-                d5.push(key)
-                break;
-                case 1:
-                  d1.push(key)
-                  break;
-            }
-}
-
-
-        for (let i = 0; i < d1.length; i++) {
-          if (!(d1[i] in nrv.d1)) nrv.d1[d1[i]] = 0
-          nrv.d1[d1[i]]++
-        }
-
-        for (let i = 0; i < d5.length; i++) {
-          if (!(d5[i] in nrv.d5)) nrv.d5[d5[i]] = 0
-          nrv.d5[d5[i]]++
-        }
-
-        for (let i = 0; i < d25.length; i++) {
-          if (!(d25[i] in nrv.d25)) nrv.d25[d25[i]] = 0
-          nrv.d25[d25[i]]++
-        }
-
-        for (let i = 0; i < d100.length; i++) {
-          if (!(d100[i] in nrv.d100)) nrv.d100[d100[i]] = 0
-          nrv.d100[d100[i]]++
-        }
-      })
-
-      let mnrv = { d1 : {}, d5 : {}, d25 : {}, d100 : {}}
-      for (let sn in nrv.d1) {
-        let a = nrv.d1[sn]
-        let f = this._totalServers - a
-        let result = this._gradeCoin(a, f, 0)
-        if (this._validResult(result)) {
-          mnrv.d1[sn] = sn
-        }
-      }
-
-      for (let sn in nrv.d5) {
-        let a = nrv.d5[sn]
-        let f = this._totalServers - a
-        let result = this._gradeCoin(a, f, 0)
-        if (this._validResult(result)) {
-          mnrv.d5[sn] = sn
-        }
-      }
-
-      for (let sn in nrv.d25) {
-        let a = nrv.d25[sn]
-        let f = this._totalServers - a
-        let result = this._gradeCoin(a, f, 0)
-        if (this._validResult(result)) {
-          mnrv.d25[sn] = sn
-        }
-      }
-
-      for (let sn in nrv.d100) {
-        let a = nrv.d100[sn]
-        let f = this._totalServers - a
-        let result = this._gradeCoin(a, f, 0)
-        if (this._validResult(result)) {
-          mnrv.d100[sn] = nrv.d100[sn]
-        }
-      }
-
-      this.addBreadCrumbReturn("showChange", mnrv)
-      return mnrv
-    })
-
-    return rqs
+  async apiFixTransferSync(coin, showncoins = null, callback = null) {
+    return this.apiFixTransferGeneric(coin, showncoins, callback)
   }
 
-  async apiFixTransferSync(coin, showncoins = null, callback=null) {
-    this.addBreadCrumbEntry("apiFixTransferSync", coin)
-    return this.apiFixTransferGeneric(coin,showncoins, callback)
-  }
-
-  async apiFixTransfer(coin, showncoins = null, callback=null) {
-    this.addBreadCrumbEntry("apiFixTransfer", coin)
-    return this.apiFixTransferGeneric(coin, showncoins,callback)
+  async apiFixTransfer(coin, showncoins = null, callback = null) {
+    return this.apiFixTransferGeneric(coin, showncoins, callback)
   }
 
   async apiFixTransferGeneric(coin, showcoin = null, callback) {
-    this.addBreadCrumbEntry("apiFixTransferGeneric", coin)
 
-    if (typeof(coin) != "object")
+    if (typeof (coin) != "object")
       return this._getError("Failed to validate input args")
-/*
-    let is_add = 2//1 = add, 0= delete, 2 = not sure
-    if( bal == null)
-      bal = await this.apiShowBalance(coin, callback)
-    let lower = []
-    let greater = []
-    let maxB = 0
-    let trueBal = 0
-    for (let b in bal.balances) {
-      if (maxB < bal.balances[b]) {
-        maxB = bal.balances[b];
-        trueBal = b;
+
+    if (showcoin == null)
+      showcoin = await this._getCoins(coin, () => {})
+    if (showcoin.code != 0) {
+      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit");
+    }
+
+    let details = []
+    for (let sn in showcoin.coinsPerRaida) {
+      let nocount = 0;
+      let yescount = 0;
+      let l = []
+      let g = []
+      showcoin.coinsPerRaida[sn].forEach((e, i) => {
+        if (e == 'no' || e == 'unknown') {
+          nocount++
+          l.push(i)
+        } else if (e == 'yes') {
+          yescount++
+          g.push(i)
+        }
+      })
+      if (nocount > 0 && nocount < 10) {
+        console.log("adding ", sn, "to coin", coin.sn);
+        details.push(await this._syncOwnersAddDelete(coin, [sn], l, 0));
+      }
+      if (yescount > 0 && yescount < 10) {
+        console.log("deleting ", sn, "to coin", coin.sn);
+        details.push(await this._syncOwnersAddDelete(coin, [sn], g, 2));
       }
     }
 
 
-    for (let k = 0; k < bal.balancesPerRaida.length; k++) {
-      if(bal.balancesPerRaida[k] < trueBal && bal.balancesPerRaida[k] != null)
-        lower.push[k]
-      else if (bal.balancesPerRaida[k] > trueBal && bal.balancesPerRaida[k] != null) {
-        greater.push[k]
-      }
+
+    let rv = {
+      "status": "done",
+      "code": 0,
+      "details": details
     }
-    */
-    if(showcoin == null)
-    showcoin = await this._getCoins(coin, ()=>{})
-if (showcoin.code != 0) {
-  return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit");
-}
-
-let details = []
-  for(let sn in showcoin.coinsPerRaida){
-let nocount = 0;
-let yescount = 0;
-let l = []
-let g = []
-showcoin.coinsPerRaida[sn].forEach((e, i)=>{
-  if(e == 'no' || e == 'unknown'){
-    nocount++
-    l.push(i)
-  } else if (e == 'yes'){
-    yescount++
-    g.push(i)
+    return rv
   }
-})
-if (nocount > 0 && nocount < 10){
-  console.log("adding ", sn, "to coin", coin.sn);
-  details.push(await this._syncOwnersAddDelete(coin, [sn], l, 0));
-}
-if (yescount > 0 && yescount < 10){
-  console.log("deleting ", sn, "to coin", coin.sn);
-  details.push(await this._syncOwnersAddDelete(coin, [sn], g, 2));
-}
-}
-
-
-
-/*
-
-  sns = []
-
-if(greater.length > 0){
-for (let g in greater){
-missingAmount = bal.balancesPerRaida[g] - trueBal
-
-  for(let sn in showcoin.coinsPerRaida){
-    let yescount = 0;
-    showcoin.coinsPerRaida[sn].forEach((e)=>{if(e == 'yes') yescount++})
-    if(showcoin.coinsPerRaida[sn][g] == 'yes' && yescount < 10)
-      sns.push(sn)
-}
-
-this._syncOwnersAddDelete(coin, sns, [g], 2)
-}
-
-    }
-*/
-
-let rv = {
-  "status": "done",
-  "code": 0,
-  "details":details
-}
-return rv
-  }
-   _getRandom(min, max) {
+  _getRandom(min, max) {
     min = Math.ceil(min);
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min + 1) + min); //The maximum is inclusive and the minimum is inclusive
   }
   // Get Free Coin
   async apiGetFreeCoin(sn = null, an = null, callback = null) {
-    if(sn == null){
+    if (sn == null) {
       sn = this._getRandom(26000, 100000);
     }
     if (an != null && !Array.isArray(an)) {
       return this._getError("Invalid input data. Authenticity Numbers must be an array")
     }
-    let bufferlength = 24+19;
-    if(an != null)
-    bufferlength += 16;
+    let bufferlength = 24 + 19;
+    if (an != null)
+      bufferlength += 16;
     //let url = this.options.freeCoinURL
     let ab, d;
     let rqdata = [];
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    let chcrc32 = this._crc32(challange,0,12)
+    let chcrc32 = this._crc32(challange, 0, 12)
     for (let i = 0; i < this._totalServers; i++) {
       ab = new ArrayBuffer(bufferlength);
       d = new DataView(ab);
-       // Trailing chars
+      // Trailing chars
 
       d.setUint8(2, i); //raida id
 
-      if(an != null) d.setUint8(5, 31);
+      if (an != null) d.setUint8(5, 31);
 
       else d.setUint8(5, 30); //command free id
 
@@ -3591,7 +2339,7 @@ return rv
       }
       d.setUint32(34, chcrc32)
       d.setUint32(38, sn << 8);
-      if(an != null){
+      if (an != null) {
         for (let x = 0; x < 16; x++) {
           d.setUint8(41 + x, parseInt(an[i].substr(x * 2, 2), 16));
         }
@@ -3603,9 +2351,9 @@ return rv
     }
     //let response
     let rv = {
-      status : 'done',
+      status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
-      cc:{
+      cc: {
         sn: sn,
         an: []
       }
@@ -3644,16 +2392,16 @@ return rv
         let data = new DataView(response, 12);
         let newan = "";
 
-        if(an == null){
-        for (let r = 0; r < 16; r++) {
-          if (data.getUint8(r) < 16) newan += "0";
-          newan += data.getUint8(r).toString(16);
-        } //let key = ldata.statement_id
+        if (an == null) {
+          for (let r = 0; r < 16; r++) {
+            if (data.getUint8(r) < 16) newan += "0";
+            newan += data.getUint8(r).toString(16);
+          } //let key = ldata.statement_id
 
-        rv.cc.an[rIdx] = newan;
-      }else{
-        rv.cc.an = an;
-      }
+          rv.cc.an[rIdx] = newan;
+        } else {
+          rv.cc.an = an;
+        }
       });
 
       return rv;
@@ -3663,9 +2411,7 @@ return rv
   }
 
 
-  async apiShowCoins(coin, page = 0, callback=null) {
-    this.addBreadCrumbEntry("apiShowCoins", coin)
-
+  async apiShowCoins(coin, page = 0, callback = null) {
     if (!this._validateCoin(coin)) {
       return this._getError("Failed to validate params")
     }
@@ -3674,15 +2420,13 @@ return rv
   }
 
   async apiShowCoinsAsArray(coin, callback) {
-    this.addBreadCrumbEntry("apiShowCoinsArray", coin)
-
     if (!this._validateCoin(coin)) {
       return this._getError("Failed to validate params")
     }
 
     let d = await this._getCoins(coin, callback)
     if ('code' in d && d.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
 
     let coins = d.coins
 
@@ -3690,7 +2434,6 @@ return rv
     for (let sn in coins) {
       a.push({
         'sn': sn,
-        'denomination': coins[sn]
       })
     }
 
@@ -3700,7 +2443,6 @@ return rv
 
   // Recovers a SkyWallet
   async apiRecoverIDCoin(params, callback) {
-    this.addBreadCrumbEntry("apiRecoverIDCoin", params)
     if (!('paycoin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "PayCoin in missing")
 
@@ -3761,52 +2503,40 @@ return rv
 
     })
 
-    this.addBreadCrumbReturn("apiRecoverIDCoin", rv)
-
     return mainPromise
   }
 
   // Shows Balance
   async apiShowBalance(coin, callback) {
-    this.addBreadCrumbEntry("apiShowBalance", coin);
     if (!coin) return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing");
     if (!this._validateCoin(coin)) return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin");
     let rqdata = [];
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    let chcrc32 = this._crc32(challange,0,12)
-/*
+    let chcrc32 = this._crc32(challange, 0, 12)
+
+    let ab, d;
     for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        sn: coin.sn,
-        nn: coin.nn,
-        an: coin.an[i],
-        pan: coin.an[i],
-        denomination: this.getDenomination(coin.sn)
-      });
-    }*/
-		let ab, d;
-		for (let i = 0; i < this._totalServers; i++) {
-		ab = new ArrayBuffer(35 + 19 + 5);
-		d = new DataView(ab);
-		d.setUint8(ab.byteLength -1, 0x3e);
-			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
-			d.setUint8(2, i) //raida id
-			d.setUint8(5, 110);//command ballance
-			d.setUint8(8, 0x00);//coin id
-			d.setUint8(12, 0xAB);// echo
-			d.setUint8(13, 0xAB);// echo
-			d.setUint8(15, 0x01)//udp number;//udp number
+      ab = new ArrayBuffer(35 + 19 + 5);
+      d = new DataView(ab);
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+      d.setUint8(2, i) //raida id
+      d.setUint8(5, 110);//command ballance
+      d.setUint8(8, 0x00);//coin id
+      d.setUint8(12, 0xAB);// echo
+      d.setUint8(13, 0xAB);// echo
+      d.setUint8(15, 0x01)//udp number;//udp number
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
       }
       d.setUint32(34, chcrc32)
-			d.setUint32(38, coin.sn<<8)
-			for (let x = 0; x < 16; x++) {
-				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
-			}
-			rqdata.push(ab)
-		}
-console.log("sending balance request", rqdata);
+      d.setUint32(38, coin.sn << 8)
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16))
+      }
+      rqdata.push(ab)
+    }
+    console.log("sending balance request", rqdata);
     let rv = {
       code: SkyVaultJS.ERR_NO_ERROR,
       balances: [],
@@ -3815,7 +2545,6 @@ console.log("sending balance request", rqdata);
       raidaStatuses: [],
       triedToFix: false,
       fixedCoin: false,
-      //denominations: []
     };
 
     for (let i = 0; i < this._totalServers; i++) {
@@ -3826,12 +2555,12 @@ console.log("sending balance request", rqdata);
     let balances = {};
     let ra, re, rf;
     ra = re = rf = 0;
-await this.waitForSockets()
+    await this.waitForSockets()
     let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
-        if(!this._activeServers.includes(rIdx)){
+        if (!this._activeServers.includes(rIdx)) {
           rv.raidaStatuses[rIdx] = "u";
-          rv.balancesPerRaida[rIdx] = null; //rv.denominations[rIdx] = null;
+          rv.balancesPerRaida[rIdx] = null;
 
           re++;
           return;
@@ -3839,7 +2568,6 @@ await this.waitForSockets()
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
           rv.balancesPerRaida[rIdx] = null;
-          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3847,7 +2575,6 @@ await this.waitForSockets()
         if (response == "error") {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
@@ -3855,16 +2582,14 @@ await this.waitForSockets()
         if (response.byteLength < 12) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          //rv.denominations[rIdx] = null;
           re++;
           return;
         }
-let dView = new DataView(response);
-let status = dView.getUint8(2);
-        if (status == 251|| status == 242) {
+        let dView = new DataView(response);
+        let status = dView.getUint8(2);
+        if (status == 251 || status == 242) {
           rv.raidaStatuses[rIdx] = "f";
           rv.balancesPerRaida[rIdx] = null;
-          //rv.denominations[rIdx] = null;
           rf++;
           return;
         }
@@ -3872,13 +2597,13 @@ let status = dView.getUint8(2);
         if (status != 250 && status != 241) {
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
-          console.log("error in raida", rIdx,", error code:", status);
+          console.log("error in raida", rIdx, ", error code:", status);
           re++;
           return;
         }
         if (response.byteLength != 16) {
           rv.raidaStatuses[rIdx] = "f";
-          rv.balancesPerRaida[rIdx] = 0; //rv.denominations[rIdx] = null;
+          rv.balancesPerRaida[rIdx] = 0;
 
           rf++;
           return;
@@ -3886,30 +2611,9 @@ let status = dView.getUint8(2);
 
         rv.raidaStatuses[rIdx] = "p";
         let b = 0
-        if(response.byteLength == 16)
-        b = dView.getUint32(12);
+        if (response.byteLength == 16)
+          b = dView.getUint32(12);
         rv.balancesPerRaida[rIdx] = b;
-        /*
-        let dsplit = new DataView(response, 16)
-        let denom = new ArrayBuffer(dsplit.byteLength + 1)
-        let denomView = new DataView(denom)
-        for(let x = 0; x < denom.byteLength -1; x++)
-          denomView.setUint8(x,dsplit.getUint8(x))
-        let den_ob = {
-          1: 0,
-          5: 0,
-          25: 0,
-          100: 0,
-          250: 0
-        }
-        den_ob[250] = denomView.getUint32(0) >>> 8
-        den_ob[100] = denomView.getUint32(3) >>> 8
-        den_ob[25] = denomView.getUint32(6) >>> 8
-        den_ob[5] = denomView.getUint32(9) >>> 8
-        den_ob[1] = denomView.getUint32(12) >>> 8
-
-        rv.denominations[rIdx] = den_ob;
-*/
         if (!(b in balances)) {
           balances[b] = 0;
         }
@@ -3951,53 +2655,14 @@ let status = dView.getUint8(2);
       rv.balance = balance;
       rv.balances = balances;
       rv.raidaStatuses = rv.raidaStatuses.join("");
-      let thiz = this;
-/*
-      if (Object.keys(balances).length > 1) {
-        let fnpm = async function () {
-          let response = await thiz.apiShowCoins(coin, callback);
-          if (!('code' in response) || response.code != SkyVaultJS.ERR_NO_ERROR) return rv;
-          let h = {};
-          let iters = thiz.options.maxCoinsPerIteraiton;
-
-          for (let k in response.coinsPerRaida) {
-            h[k] = response.coinsPerRaida[k];
-            iters++;
-
-            if (iters >= thiz.options.maxCoinsPerIteraiton) {
-              //await thiz.apiFixTransferSync(response.coinsPerRaida);
-              h = {};
-              iters = 0;
-            }
-          }
-
-          if (needFix) {
-            rv.triedToFix = true;
-            coin.pownstring = rv.raidaStatuses;
-            coin.result = thiz.__frackedResult;
-            let fresponse = await thiz.apiFixfracked([coin], callback);
-            if (fresponse.status != 'done') return rv;
-
-            if (fresponse.fixedNotes == 1) {
-              rv.fixedCoin = true;
-            }
-          }
-        }().then(response => {
-          return rv;
-        });
-
-        return fnpm;
-      }
-*/
       if (needFix) {
         rv.triedToFix = true;
         coin.pownstring = rv.raidaStatuses;
         coin.result = this.__frackedResult;
-        let fpm = this.apiFixfracked([coin])
-      //  return fpm;
+        this.apiFixfracked([coin])
+        //  return fpm;
       }
 
-      this.addBreadCrumbReturn("apiShowBalance", rv);
       return rv;
     });
 
@@ -4011,8 +2676,8 @@ let status = dView.getUint8(2);
       return this._getErrorCode(SkyVaultJS.ERR_DNS_RECORD_NOT_FOUND, "Failed to resolve SkyWallet")
 
     let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'sn' : sn
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'sn': sn
     }
 
     return rv
@@ -4020,7 +2685,6 @@ let status = dView.getUint8(2);
 
   // Health Check
   async apiHealthCheck(params, callback = null) {
-    this.addBreadCrumbEntry("apiHealthCheck", params)
     if (!('coin' in params))
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing")
 
@@ -4029,10 +2693,10 @@ let status = dView.getUint8(2);
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
 
     let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "HealthCheck Completed",
-      'balances' : [],
-      'balance' : -1,
+      'code': SkyVaultJS.ERR_NO_ERROR,
+      'text': "HealthCheck Completed",
+      'balances': [],
+      'balance': -1,
       'show_balances': [],
       'sns': []
     }
@@ -4046,7 +2710,7 @@ let status = dView.getUint8(2);
     lrv = await this.apiShowCoins(coin, callback)
     // Check if the coins is counterfeit
     if ('code' in lrv && lrv.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
 
     if (('code' in lrv) && lrv.code == SkyVaultJS.ERR_NO_ERROR) {
       rv.sns = lrv.coinsPerRaida
@@ -4062,474 +2726,8 @@ let status = dView.getUint8(2);
 
   }
 
-  // Check in coins have NFT
-  async apiNFTExists(params, callback = null) {
-    this.addBreadCrumbEntry("apiNFTExists")
-
-    if (!('coins' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coins are missing")
-
-    let coins = params.coins
-    if (coins.length > this.options.maxCoinsPerIteraiton)
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Too many coins in stack. Max number of coins is: " + this.options.maxCoinsPerIteraiton)
-
-    for (let i = 0; i < coins.length; i++) {
-      let coin = coins[i]
-      if (!this._validateCoin(coin))
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coins")
-    }
-
-    let rqdata = []
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        sn: [],
-        an: []
-      })
-      for (let j = 0; j < coins.length; j++) {
-        let coin = coins[j]
-        rqdata[i].sn.push(coin.sn)
-        rqdata[i].an.push(coin.an[i])
-      }
-    }
-
-    let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Data returned",
-      'results': {}
-    }
-
-    let a, f, e
-    a = f = e = 0
-
-
-    let results = {}
-    await this.waitForSockets()
-    let rqs = this._launchRequests("nft/has_nft", rqdata, 'GET', callback)
-    let mainPromise = rqs.then(response => {
-      this._parseMainPromise(response, 0, rv, serverResponse => {
-        if (serverResponse === "error" || serverResponse == "network") {
-          e++
-          return
-        }
-        if (serverResponse.status == "fail") {
-          f++
-          return
-        }
-
-        if (serverResponse.status == "success") {
-         let message = serverResponse.message
-          let vals = message.split(",")
-          if (vals.length != coins.length) {
-            e++
-            return
-          }
-
-          for (let c = 0; c < vals.length; c++) {
-            let cc = coins[c]
-            let sn = cc.sn
-            if (!(sn in results)) {
-              results[sn] = 0
-            }
-
-            if (vals[c] === "true") {
-              results[sn]++
-            }
-          }
-
-          a++
-          return
-        }
-
-        e++
-      })
-
-      console.log("DONE")
-      console.log(results)
-
-      let result = this._gradeCoin(a, f, e)
-      if (!this._validResult(result))
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to get NFT tokens. Too many error responses from RAIDA")
-
-
-      let fresults = {}
-      for (let sn in results) {
-        let total = results[sn]
-        if (total >= this.options.minPassedNumToBeAuthentic) {
-          fresults[sn] = true
-        } else {
-          fresults[sn] = false
-        }
-      }
-      console.log("DONE2")
-      console.log(fresults)
-
-      rv.results = fresults
-
-      return rv
-
-    })
-
-    this.addBreadCrumbReturn("apiNFTInsert", rv)
-
-    return mainPromise
-  }
-
-  // Multi Insert
-  async apiNFTMultiInsert(params, callback = null) {
-    this.addBreadCrumbEntry("apiNFTMultiInsert")
-
-    if (!('coins' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coins are missing")
-
-
-    if (!('data' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_DATA, "Data is missing")
-
-    let coins = params.coins
-    if (coins.length > this.options.maxCoinsPerIteraiton)
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Too many coins in stack. Max number of coins is: " + this.options.maxCoinsPerIteraiton)
-
-    for (let i = 0; i < coins.length; i++) {
-      let coin = coins[i]
-      if (!this._validateCoin(coin))
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coins")
-    }
-
-    // Doing detect
-    let detect = await this.apiDetect(coins, callback)
-    if (detect.code != SkyVaultJS.ERR_NO_ERROR)
-        return this._getErrorCode(SkyVaultJS.ERR_DETECT_FAILED, "Failed to do multi_detect")
-
-    if (detect.counterfeitNotes > 0) {
-        return this._getErrorCode(SkyVaultJS.ERR_COUNTERFEIT_COIN, "There is at least one counterfeit coin in the Stack. Stop doing anything")
-    }
-
-    if (detect.errorNotes > 0) {
-        return this._getErrorCode(SkyVaultJS.ERR_NETWORK_ERROR_COIN, "There was an error during multi_detect. Stop doing anything")
-    }
-
-    if (detect.frackedNotes > 0) {
-      let fresult = await this.apiFixfracked(detect.result, callback)
-      if (fresult.code != SkyVaultJS.ERR_NO_ERROR)
-          return this._getErrorCode(SkyVaultJS.ERR_FAILED_TO_FIX, "Failed to fix coins")
-
-      for (let sn in detect.result) {
-        let cc = detect.result[sn]
-        if (cc.counterfeit > 2) {
-          return this._getErrorCode(SkyVaultJS.ERR_FAILED_TO_FIX, "Failed to fix coins. Coin " + cc.sn + " still has more than two countefeit responses")
-        }
-      }
-    }
-
-    let success = 0
-    let failed = 0
-
-    delete params.coins
-    for (let i = 0; i < coins.length; i++) {
-      let coin = coins[i]
-      params.coin = coin
-
-      let nftresult = await this.apiNFTInsert(params, callback)
-      if (nftresult.code != SkyVaultJS.ERR_NO_ERROR) {
-        failed++
-      } else {
-        success++
-      }
-    }
-
-    let code
-    let msg
-    if (failed > 0) {
-      if (success == 0) {
-          return this._getErrorCode(SkyVaultJS.ERR_FAILED_TO_CREATE_TOKENS, "Failed to create all tokens")
-      }
-
-      code = SkyVaultJS.ERR_HAS_ERROR
-      msg = "Not all tokens have been created"
-    } else {
-      code = SkyVaultJS.ERR_NO_ERROR
-      msg = "Tokens created"
-    }
-
-    let rv = {
-      'code' : code,
-      'text' : msg,
-      'tokensCreated': success,
-      'tokensFailed': failed,
-    }
-
-    return rv
-  }
-
-  // Create NFT
-  async apiNFTInsert(params, callback = null) {
-    this.addBreadCrumbEntry("apiNFTInsert", rv)
-
-    let size = 0
-
-    if (!('coin' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin is missing")
-
-    if (!('data' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_DATA, "Data is missing")
-
-    if (!('metadata' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_METADATA, "MetaData is missing")
-
-    let metadata = params.metadata
-    if (!('filename' in metadata))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_METADATA, "Filename is missing")
-
-    let filename = metadata.filename
-    let proofmimetype = "image/jpeg"
-    let mimetype = "application/octet-stream"
-    if ('mimetype' in metadata)
-      mimetype = metadata.mimetype
-
-    let coin = params['coin']
-    if (!this._validateCoin(coin))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-
-    let protocol = 0
-    if ('protocol' in params)
-      protocol = params.protocol
-
-    if (protocol != 0 && protocol != 1)
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_UNSUPPORTED_NFT_PROTOCOL, "Unsupported NFT Protocol")
-
-    size += params.data.length
-    if (size == 0) {
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_BILLPAY_EMPTY_PAYDATA, "Data is empty")
-    }
-    let proofdata = null
-    if (protocol == 1) {
-      if (!('proofdata' in params))
-        return this._getErrorCode(SkyVaultJS.ERR_PARAM_NFT_MISSING_ID_PROOF, "ID Proof Picture is missing")
-
-      if ('proofmimetype' in metadata)
-        proofmimetype = metadata.proofmimetype
-
-      proofdata = params.proofdata
-      size += proofdata.length
-    }
-
-    if (size > this.options.maxNFTSize)
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_NFT_SIZE_IS_TOO_BIG, "The size of picture and ID proof is too big")
-
-    let title = ""
-    let description = ""
-    if ('title' in metadata)
-      title = metadata.title
-
-    if ('description' in metadata)
-      description = metadata.description
-
-    let obj = {
-      'filename' : filename,
-      'mimetype' : mimetype,
-      'proofmimetype' : proofmimetype,
-      'title' : title,
-      'description' : description
-    }
-
-    let rqdata = []
-    let tags = this._getNFTStringForObject(obj, params.data, proofdata)
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        'sn' : coin.sn,
-        'an' : coin.an[i],
-        'protocol': protocol,
-        'stripe' : tags[i]['stripe'],
-        'mirror' : tags[i]['mirror1'],
-        'mirror2' : tags[i]['mirror2']
-      })
-    }
-
-    let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Created successfully"
-    }
-
-    let a, f, e
-    a = f = e = 0
-    await this.waitForSockets()
-    let rqs = this._launchRequests("nft/insert", rqdata, 'POST', callback)
-    let mainPromise = rqs.then(response => {
-      this._parseMainPromise(response, 0, rv, serverResponse => {
-        if (serverResponse === "error" || serverResponse == "network") {
-          e++
-          return
-        }
-        if (serverResponse.status == "success") {
-          a++
-        }
-        if (serverResponse.status == "fail") {
-          f++
-        }
-      })
-
-      let result = this._gradeCoin(a, f, e)
-      if (!this._validResult(result))
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to create NFT token. Too many error responses from RAIDA")
-
-      return rv
-
-    })
-
-    this.addBreadCrumbReturn("apiNFTInsert", rv)
-
-    return mainPromise
-  }
-
-  // Delete NFT
-  async apiNFTDelete(params, callback = null) {
-    this.addBreadCrumbEntry("apiNFTDelete", rv)
-
-    let size = 0
-
-    if (!('coin' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin is missing")
-
-    let coin = params['coin']
-    if (!this._validateCoin(coin))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-
-    let rqdata = []
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        'sn' : coin.sn,
-        'an' : coin.an[i]
-      })
-    }
-
-    let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "Deleted successfully"
-    }
-
-    let a, f, e
-    a = f = e = 0
-    await this.waitForSockets()
-    let rqs = this._launchRequests("nft/delete", rqdata, 'GET', callback)
-    let mainPromise = rqs.then(response => {
-      this._parseMainPromise(response, 0, rv, serverResponse => {
-        if (serverResponse === "error" || serverResponse == "network") {
-          e++
-          return
-        }
-        if (serverResponse.status == "success") {
-          a++
-        }
-        if (serverResponse.status == "fail") {
-          f++
-        }
-      })
-
-      let result = this._gradeCoin(a, f, e)
-      if (!this._validResult(result))
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to delete NFT token. Too many error responses from RAIDA")
-
-      return rv
-    })
-
-    this.addBreadCrumbReturn("apiNFTDelete", rv)
-
-    return mainPromise
-  }
-
-  // Read NFT
-  async apiNFTRead(params, callback = null) {
-    this.addBreadCrumbEntry("apiNFTRead", rv)
-
-    if (!('coin' in params))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin is missing")
-
-    let coin = params['coin']
-    if (!this._validateCoin(coin))
-      return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
-
-    let rqdata = []
-    for (let i = 0; i < this._totalServers; i++) {
-      rqdata.push({
-        'sn' : coin.sn,
-        'an' : coin.an[i],
-      })
-    }
-
-    let rv = {
-      'code' : SkyVaultJS.ERR_NO_ERROR,
-      'text' : "NFT downloaded successfully",
-      'data' : null,
-      'protocol' : 0,
-      'metadata' : {}
-    }
-
-    let a, f, e
-    a = f = e = 0
-    let mparts = []
-    for (let i = 0; i < this._totalServers; i++)
-        mparts[i] = null
-await this.waitForSockets()
-    let rqs = this._launchRequests("nft/read", rqdata, 'GET', callback)
-    let mainPromise = rqs.then(response => {
-      this._parseMainPromise(response, 0, rv, (serverResponse, rIdx) => {
-          console.log("SR")
-        console.log(serverResponse)
-        if (serverResponse === "error" || serverResponse == "network") {
-          e++
-          return
-        }
-
-        if (serverResponse.status == "success") {
-          console.log("SUCCESS")
-          if (!('stripe' in serverResponse) || !('mirror' in serverResponse) || !('mirror2' in serverResponse))  {
-            e++
-            return
-          }
-
-          mparts[rIdx] = {
-            'stripe' : serverResponse.stripe,
-            'mirror1' : serverResponse.mirror,
-            'mirror2' : serverResponse.mirror2,
-          }
-
-          a++
-        }
-
-        if (serverResponse.status == "fail") {
-          f++
-        }
-      })
-      let result = this._gradeCoin(a, f, e)
-      if (!this._validResult(result))
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to download NFT token. Too many error responses from RAIDA")
-
-      let odata = this._getNFTObjectFromString(mparts)
-      if (odata == null) {
-        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_FAILED_TO_BUILD_MESSAGE_FROM_CHUNKS, "Failed to build message from RAIDA chunks. Some are missing")
-      }
-
-      rv.metadata = odata.metadata
-      rv.data = odata.data
-      if ('proofdata' in odata) {
-        rv.proofdata = odata.proofdata
-        rv.protocol = 1
-      }
-
-
-      return rv
-
-    })
-
-    this.addBreadCrumbReturn("apiNFTInsert", rv)
-
-    return mainPromise
-  }
-
   /*** INTERNAL FUNCTIONS. Use witch caution ***/
   async _resolveDNS(hostname, type = null) {
-    this.addBreadCrumbEntry("_resolveDNS", hostname)
-
     let r = await this._resolveCloudFlareDNS(hostname, type)
     if (r == null) {
       r = await this._resolveGoogleDNS(hostname, type)
@@ -4654,7 +2852,6 @@ await this.waitForSockets()
         nn: coin.nn,
         an: coin.an[i],
         pan: coin.an[i],
-        denomination: this.getDenomination(coin.sn),
         content: "1"
       })
     }
@@ -4662,7 +2859,7 @@ await this.waitForSockets()
       code: SkyVaultJS.ERR_NO_ERROR,
       balancesPerRaida: []
     }
-await this.waitForSockets()
+    await this.waitForSockets()
     let rqs = this._launchRequests("show", rqdata, 'GET', callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error")
@@ -4689,7 +2886,7 @@ await this.waitForSockets()
           let amount = 0
           try {
             amount = parseInt(item.amount)
-          } catch (e) { }
+          } catch (e) {}
 
 
           rv.balancesPerRaida[rIdx] += amount
@@ -4701,39 +2898,51 @@ await this.waitForSockets()
 
     return rqs
   }
-/*
-  async _getCoins(coin, callback) {
-    let rqdata = []
 
+  async _getCoins(coin, page = 0, callback = null) {
+    let rqdata = []
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange, 0, 12)
     // Assemble input data for each Raida Server
+    //
+    //
+    console.log("get coins")
+    console.log(coin)
     let ab, d;
-		for (let i = 0; i < this._totalServers; i++) {
-		ab = new ArrayBuffer(36 + 19 + 5);
-		d = new DataView(ab);
-		d.setUint8(ab.byteLength -1, 0x3e);
-			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
-			d.setUint8(2, i) //raida id
-			d.setUint8(5, 112);//show register
-			d.setUint8(8, 0x01);//coin id
-			d.setUint8(12, 0xAB);// echo
-			d.setUint8(13, 0xAB);// echo
-			d.setUint8(15, 0x01)//udp number;//udp number
-      d.setUint8(ab.byteLength -3, 251)//biggest returned denomination
-			d.setUint32(38, coin.sn<<8)
-			for (let x = 0; x < 16; x++) {
-				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
-			}
-			rqdata.push(ab)
-		}
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(36 + 20 + 5);
+      d = new DataView(ab);
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+      d.setUint8(2, i) //raida id
+      d.setUint8(5, 114);//show register
+      d.setUint8(8, 0x01);//coin id
+      d.setUint8(12, 0xAB);// echo
+      d.setUint8(13, 0xAB);// echo
+      d.setUint8(15, 0x01)//udp number;//udp number
+      d.setUint8(ab.byteLength - 3, 1)//biggest returned denomination
+      d.setUint32(38, coin.sn << 8)
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(38 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16))
+      }
+      d.setUint8(58, page)
+      rqdata.push(ab)
+    }
     let rv = {
       code: SkyVaultJS.ERR_NO_ERROR,
       coins: {},
-      coinsPerRaida: {}
+      coinsPerRaida: {},
+      details: []
     }
 
     let skipRaidas = []
     let a, f, e
     a = f = e = 0
+    await this.waitForSockets()
     let rqs = this._launchRequests("show", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error") {
@@ -4756,6 +2965,7 @@ await this.waitForSockets()
         }
 
         if (status != 250) {
+          console.log("get coin error code:", status, "on raida", rIdx);
           skipRaidas.push(rIdx)
           e++
           return
@@ -4763,11 +2973,11 @@ await this.waitForSockets()
 
         a++
         let coinsplit = new DataView(response, 12)
-        let amount = coinsplit.byteLength/3
+        let amount = Math.floor(coinsplit.byteLength / 3)
         let coins = new ArrayBuffer(coinsplit.byteLength + 1)
         let coinsView = new DataView(coins)
-        for(let x = 0; x < coins.byteLength -1; x++)
-          coinsView.setUint8(x,coinsplit.getUint8(x))
+        for (let x = 0; x < coins.byteLength - 1; x++)
+          coinsView.setUint8(x, coinsplit.getUint8(x))
         for (let i = 0; i < amount; i++) {
           let key = coinsView.getUint32(i * 3) >>> 8
           if (!(key in rv.coins)) {
@@ -4791,7 +3001,7 @@ await this.waitForSockets()
       //if (!this._validResult(result))
       //  return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to get coins. Too many error responses from RAIDA")
 
-      let nrv = { code: SkyVaultJS.ERR_NO_ERROR, coins: {} }
+      let nrv = {code: SkyVaultJS.ERR_NO_ERROR, coins: {}}
       nrv.coinsPerRaida = rv.coinsPerRaida
       for (let f = 0; f < skipRaidas.length; f++) {
         let frIdx = skipRaidas[f]
@@ -4801,11 +3011,10 @@ await this.waitForSockets()
       }
       for (let sn in rv.coins) {
         let a = rv.coins[sn].passed
-        let f = this._totalServers - a
+        let f = this._activeServers.length - a
         let result = this._gradeCoin(a, f, 0)
         if (this._validResult(result)) {
           nrv.coins[sn] = {
-            denomination: this.getDenomination(sn)
           }
         }
       }
@@ -4816,137 +3025,10 @@ await this.waitForSockets()
 
     return rqs
   }
-*/
-
-    async _getCoins(coin, page = 0, callback=null){//ByDenomination(coin, denomination, callback) {
-      let rqdata = []
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-      let chcrc32 = this._crc32(challange,0,12)
-      // Assemble input data for each Raida Server
-      let ab, d;
-  		for (let i = 0; i < this._totalServers; i++) {
-  		ab = new ArrayBuffer(36 + 20 + 5);
-  		d = new DataView(ab);
-  		d.setUint8(ab.byteLength -1, 0x3e);
-  			d.setUint8(ab.byteLength -2, 0x3e); // Trailing chars
-  			d.setUint8(2, i) //raida id
-  			d.setUint8(5, 114);//show register
-  			d.setUint8(8, 0x01);//coin id
-  			d.setUint8(12, 0xAB);// echo
-  			d.setUint8(13, 0xAB);// echo
-  			d.setUint8(15, 0x01)//udp number;//udp number
-        d.setUint8(ab.byteLength -3, 1)//biggest returned denomination
-  			d.setUint32(38, coin.sn<<8)
-        for (let x = 0; x < 12; x++) {
-          d.setUint8(22 + x, challange[x])
-        }
-        d.setUint32(34, chcrc32)
-  			for (let x = 0; x < 16; x++) {
-  				d.setUint8(38+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
-  			}
-        //d.setUint8(57, denomination)
-        d.setUint8(58, page)
-  			rqdata.push(ab)
-  		}
-      let rv = {
-        code: SkyVaultJS.ERR_NO_ERROR,
-        coins: {},
-        coinsPerRaida: {},
-        details: []
-      }
-
-      let skipRaidas = []
-      let a, f, e
-      a = f = e = 0
-      await this.waitForSockets()
-      let rqs = this._launchRequests("show", rqdata, callback).then(response => {
-        this._parseMainPromise(response, 0, rv, (response, rIdx) => {
-          if (response == "network" || response == "error") {
-            skipRaidas.push(rIdx)
-            e++
-            return
-          }
-
-          if ((response.byteLength < 12)) {
-            skipRaidas.push(rIdx)
-            e++
-            return
-          }
-          let dView = new DataView(response);
-          let status = dView.getUint8(2);
-          if (status == 251) {
-            skipRaidas.push(rIdx)
-            f++
-            return
-          }
-
-          if (status != 250) {
-            console.log("get coin error code:", status, "on raida", rIdx);
-            skipRaidas.push(rIdx)
-            e++
-            return
-          }
-
-          a++
-          let coinsplit = new DataView(response, 12)
-          let amount = Math.floor(coinsplit.byteLength / 3)
-          let coins = new ArrayBuffer(coinsplit.byteLength + 1)
-          let coinsView = new DataView(coins)
-          for(let x = 0; x < coins.byteLength -1; x++)
-            coinsView.setUint8(x,coinsplit.getUint8(x))
-          for (let i = 0; i < amount; i++) {
-            let key = coinsView.getUint32(i * 3) >>> 8
-            if (!(key in rv.coins)) {
-              rv.coins[key] = {
-                passed: 0
-              }
-              rv.coinsPerRaida[key] = []
-              for (let j = 0; j < this._totalServers; j++)
-                rv.coinsPerRaida[key][j] = "no"
-            }
-
-            rv.coinsPerRaida[key][rIdx] = "yes"
-            rv.coins[key].passed++
-          }
-        })
-
-        // Fail only if counterfeit. Other errors are fine
-        let result = this._gradeCoin(a, f, e)
-        if (result == this.__counterfeitResult)
-          return this._getErrorCode(SkyVaultJS.ERR_COUNTERFEIT_COIN, "Counterfeit coins")
-        //if (!this._validResult(result))
-        //  return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "Failed to get coins. Too many error responses from RAIDA")
-
-        let nrv = { code: SkyVaultJS.ERR_NO_ERROR, coins: {} }
-        nrv.coinsPerRaida = rv.coinsPerRaida
-        for (let f = 0; f < skipRaidas.length; f++) {
-          let frIdx = skipRaidas[f]
-          for (let sn in rv.coinsPerRaida) {
-            rv.coinsPerRaida[sn][frIdx] = "unknown"
-          }
-        }
-        for (let sn in rv.coins) {
-          let a = rv.coins[sn].passed
-          let f = this._activeServers.length - a
-          let result = this._gradeCoin(a, f, 0)
-          if (this._validResult(result)) {
-            nrv.coins[sn] = {
-              denomination: this.getDenomination(sn)
-            }
-          }
-        }
-
-
-        return nrv
-      })
-
-      return rqs
-    }
 
   // Doing internal fix
   async _realFix(round, raidaIdx, coins, callback = null) {
     let rqdata, triad, rqs, resultData; //for (let corner = 0; corner < 4; corner++) {
-    //triad = this._trustedTriads[raidaIdx][corner]
 
     rqdata = this._formRequestData(coins, false, 11);
     await this.waitForSockets()
@@ -4957,7 +3039,7 @@ await this.waitForSockets()
     });
 
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    let chcrc32 = this._crc32(challange,0,12)
+    let chcrc32 = this._crc32(challange, 0, 12)
     let ab = new ArrayBuffer(24 + 16 + 4 * 25 + 19 * coins.length);
     let d = new DataView(ab);
     d.setUint8(ab.byteLength - 1, 0x3e);
@@ -4967,10 +3049,10 @@ await this.waitForSockets()
 
     d.setUint8(5, 50); //command fix
 
-    if(coins[0].sn >= 26000 && coins[0].sn <= 100000){
-    d.setUint8(8, 0x00); //coin id
-    }else{
-    d.setUint8(8, 0x01); //coin id
+    if (coins[0].sn >= 26000 && coins[0].sn <= 100000) {
+      d.setUint8(8, 0x00); //coin id
+    } else {
+      d.setUint8(8, 0x01); //coin id
     }
 
     d.setUint8(12, 0xAB); // echo
@@ -4994,16 +3076,16 @@ await this.waitForSockets()
       }
       i++;
     }
-//console.log("ticket ", resultData['result'][coins[0].sn].tickets);
+    //console.log("ticket ", resultData['result'][coins[0].sn].tickets);
     for (let j = 0; j < 25; j++) {
 
-      if ('tickets' in resultData.result[coins[0].sn] && j != raidaIdx) d.setUint32(38 + 19 * coins.length  + j * 4, resultData['result'][coins[0].sn].tickets[j]);else {
+      if ('tickets' in resultData.result[coins[0].sn] && j != raidaIdx) d.setUint32(38 + 19 * coins.length + j * 4, resultData['result'][coins[0].sn].tickets[j]); else {
         d.setUint32(38 + 19 * coins.length + j * 4, 0);
       }
     } // exec fix fracked
 
-//console.log(d);
-await this.waitForSockets()
+    //console.log(d);
+    await this.waitForSockets()
     rqs = this._launchRequests("multi_fix", ab, callback, [raidaIdx]);
     resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
       if (a == 1 && c == 0 && e == 0) return this.__authenticResult;
@@ -5031,12 +3113,12 @@ await this.waitForSockets()
   }
 
 
-  _formRequestData(params, pan=true, command=0) {
+  _formRequestData(params, pan = true, command = 0) {
     let rqdata = []
     let amount = params.length
     let bodylength
-    if(pan)
-    bodylength=35
+    if (pan)
+      bodylength = 35
     else {
       bodylength = 19
     }
@@ -5045,10 +3127,10 @@ await this.waitForSockets()
     let chcrc32 = this._crc32(challange, 0, 12);
     // Assemble input data for each Raida Server
     for (let i = 0; i < this._totalServers; i++) {
-      let ab = new ArrayBuffer(35 + (bodylength*amount) +5)
+      let ab = new ArrayBuffer(35 + (bodylength * amount) + 5)
       let d = new DataView(ab)
-      d.setUint8(ab.byteLength -1, 0x3e)
-				d.setUint8(ab.byteLength -2, 0x3e) // Trailing chars
+      d.setUint8(ab.byteLength - 1, 0x3e)
+      d.setUint8(ab.byteLength - 2, 0x3e) // Trailing chars
       //rqdata.push(ab)
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x]);
@@ -5074,21 +3156,21 @@ await this.waitForSockets()
         //d.setUint8(3, 0x00) //shard id
         d.setUint8(5, command)//command
         d.setUint8(5, command); //command
-        if(coin.sn >= 26000 && coin.sn <= 100000){
-        d.setUint8(8, 0x00); //coin id
-        }else{
-        d.setUint8(8, 0x01); //coin id
+        if (coin.sn >= 26000 && coin.sn <= 100000) {
+          d.setUint8(8, 0x00); //coin id
+        } else {
+          d.setUint8(8, 0x01); //coin id
         }
         d.setUint8(12, 0xAB)// echo
         d.setUint8(13, 0xAB)// echo
         d.setUint8(15, 0x01)//udp number//udp number
 
         //body
-        d.setUint32(38+(j*bodylength), coin.sn<<8)//rqdata[i].sns.push(coin.sn)
+        d.setUint32(38 + (j * bodylength), coin.sn << 8)//rqdata[i].sns.push(coin.sn)
         for (let x = 0; x < 16; x++) {
-          d.setUint8(38+(j*bodylength)+(3+x), parseInt(coin.an[i].substr(x*2, 2), 16))
-          if(pan)
-          d.setUint8(38+(j*bodylength)+(19+x), parseInt(coin.pan[i].substr(x*2, 2), 16))
+          d.setUint8(38 + (j * bodylength) + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16))
+          if (pan)
+            d.setUint8(38 + (j * bodylength) + (19 + x), parseInt(coin.pan[i].substr(x * 2, 2), 16))
         }//rqdata[i].ans.push(coin.an[i])
         //rqdata[i].pans.push(coin.pan[i])
 
@@ -5110,8 +3192,8 @@ await this.waitForSockets()
         counterfeitNotes: 0,
         errorNotes: 0,
         frackedNotes: 0,
-        result : [],
-        details : [],
+        result: [],
+        details: [],
         tickets: []
       }
 
@@ -5124,7 +3206,6 @@ await this.waitForSockets()
         rcoins[sn] = {
           nn: coins[i].nn,
           sn: sn,
-          denomination: this.getDenomination(sn),
           errors: 0,
           counterfeit: 0,
           authentic: 0,
@@ -5133,7 +3214,7 @@ await this.waitForSockets()
           message: new Array(this._totalServers)
         }
 
-        if (typeof(coins[i].pan) != 'undefined')
+        if (typeof (coins[i].pan) != 'undefined')
           rcoins[sn].an = coins[i].pan
       }
 
@@ -5155,7 +3236,7 @@ await this.waitForSockets()
           return
         }
 
-        let sr =new DataView(serverResponse)
+        let sr = new DataView(serverResponse)
 
         let status = sr.getUint8(2)
         if (status < 241) {
@@ -5166,11 +3247,11 @@ await this.waitForSockets()
           }
           return
         }
-/*
-        if ('ticket' in sr) {
-          rv.tickets[raidaIdx] = sr.ticket
-        }
-*///implement with superfix
+        /*
+                if ('ticket' in sr) {
+                  rv.tickets[raidaIdx] = sr.ticket
+                }
+        *///implement with superfix
 
         //let s = sr.status
         if (status == '241') {
@@ -5191,45 +3272,45 @@ await this.waitForSockets()
           }
           return
         }
-//no mixed bit in response right now
-/*
-        if (sr.status == 'mixed') {
-          let message = sr.message
-          let vals = message.split(',')
-          if (vals.length != coins.length) {
-            console.log("Invalid size: " + vals.length + ", coins size: " + coins.length)
-            for (let i = 0; i < coins.length; i++) {
-              let sn = coins[i].sn
-              rcoins[sn].errors++
-              rcoins[sn].pownstring += "e"
-            }
-            return
-          }
-
-          for (let x = 0; x < vals.length; x++) {
-            let vs = vals[x]
-            let sn = coins[x].sn
-            if (vs == 'pass') {
-              rcoins[sn].authentic++
-              rcoins[sn].pownstring += "p"
-            } else if (vs == 'fail') {
-              this._addCoinToRarr(raidaIdx, coins[x])
-              rcoins[sn].counterfeit++
-              rcoins[sn].pownstring += "f"
-            } else {
-              rcoins[sn].errors++
-              rcoins[sn].pownstring += "e"
-            }
-          }
-
-
-          //for (let i = 0; i < coins.length; i++) {
-          //  let sn = coins[i].sn
-          //  rcoins[sn].counterfeit = this._totalServers
-          //  rcoins[sn].pownstring = "f".repeat(this._totalServers)
-          //}
-          return
-        }*/
+        //no mixed bit in response right now
+        /*
+                if (sr.status == 'mixed') {
+                  let message = sr.message
+                  let vals = message.split(',')
+                  if (vals.length != coins.length) {
+                    console.log("Invalid size: " + vals.length + ", coins size: " + coins.length)
+                    for (let i = 0; i < coins.length; i++) {
+                      let sn = coins[i].sn
+                      rcoins[sn].errors++
+                      rcoins[sn].pownstring += "e"
+                    }
+                    return
+                  }
+        
+                  for (let x = 0; x < vals.length; x++) {
+                    let vs = vals[x]
+                    let sn = coins[x].sn
+                    if (vs == 'pass') {
+                      rcoins[sn].authentic++
+                      rcoins[sn].pownstring += "p"
+                    } else if (vs == 'fail') {
+                      this._addCoinToRarr(raidaIdx, coins[x])
+                      rcoins[sn].counterfeit++
+                      rcoins[sn].pownstring += "f"
+                    } else {
+                      rcoins[sn].errors++
+                      rcoins[sn].pownstring += "e"
+                    }
+                  }
+        
+        
+                  //for (let i = 0; i < coins.length; i++) {
+                  //  let sn = coins[i].sn
+                  //  rcoins[sn].counterfeit = this._totalServers
+                  //  rcoins[sn].pownstring = "f".repeat(this._totalServers)
+                  //}
+                  return
+                }*/
 
         // General error
         for (let i = 0; i < coins.length; i++) {
@@ -5245,7 +3326,7 @@ await this.waitForSockets()
       // Detect the result of each coin
       Object.keys(rcoins).map(sn => {
         rcoins[sn].result = this._gradeCoin(rcoins[sn].authentic, rcoins[sn].counterfeit, rcoins[sn].errors, this)
-        switch(rcoins[sn].result) {
+        switch (rcoins[sn].result) {
           case this.__authenticResult:
             rv.authenticNotes++
             break
@@ -5281,8 +3362,8 @@ await this.waitForSockets()
         errorNotes: 0,
         frackedNotes: 0,
         transaction_id: "",
-        result : [],
-        details : []
+        result: [],
+        details: []
       }
 
       // Return value
@@ -5295,7 +3376,6 @@ await this.waitForSockets()
         rcoins[sn] = {
           nn: coins[i].nn,
           sn: sn,
-          denomination: this.getDenomination(sn),
           errors: 0,
           counterfeit: 0,
           authentic: 0,
@@ -5304,7 +3384,7 @@ await this.waitForSockets()
           message: new Array(this._totalServers)
         }
 
-        if (typeof(coins[i].pan) != 'undefined')
+        if (typeof (coins[i].pan) != 'undefined')
           rcoins[sn].an = coins[i].pan
       }
 
@@ -5325,7 +3405,7 @@ await this.waitForSockets()
           return
         }
 
-        let sr =new DataView(serverResponse)
+        let sr = new DataView(serverResponse)
         // The order in input and output data is the same
         for (let i = 0; i < coins.length; i++) {
           let sn = coins[i].sn
@@ -5338,26 +3418,26 @@ await this.waitForSockets()
           }
           let mixed = 0
           let ms
-          if(status == 243){
-            if(sr.byteLength >= 20)
-            ms = sr.getUint8(Math.floor(20 +(i/8)))
-            else if(sr.byteLength >= 16){
-            ms = sr.getUint8(Math.floor(16 +(i/8)))
-          }else {
-              ms = sr.getUint8(Math.floor(12 +(i/8)))
+          if (status == 243) {
+            if (sr.byteLength >= 20)
+              ms = sr.getUint8(Math.floor(20 + (i / 8)))
+            else if (sr.byteLength >= 16) {
+              ms = sr.getUint8(Math.floor(16 + (i / 8)))
+            } else {
+              ms = sr.getUint8(Math.floor(12 + (i / 8)))
             }
-            let bitpos = i - (8*Math.floor(i/8))
+            let bitpos = i - (8 * Math.floor(i / 8))
             mixed = (ms >>> bitpos) & 1
           }
 
-          if (status == 250 || status == 241 ||(status == 243 && mixed == 1)) {//sr.status == 'pass') {
+          if (status == 250 || status == 241 || (status == 243 && mixed == 1)) {//sr.status == 'pass') {
             rcoins[sn].authentic++;
             rcoins[sn].pownstring += "p"
             if (!('tickets' in rcoins[sn]))
               rcoins[sn].tickets = []
-            if(sr.byteLength >= 16)
-            rcoins[sn].tickets[raidaIdx] = sr.getUint32(12)
-          } else if (status == 242 || status == 251||(status == 243 && mixed == 0)) {
+            if (sr.byteLength >= 16)
+              rcoins[sn].tickets[raidaIdx] = sr.getUint32(12)
+          } else if (status == 242 || status == 251 || (status == 243 && mixed == 0)) {
             rcoins[sn].counterfeit++;
             rcoins[sn].pownstring += "f"
           }
@@ -5374,7 +3454,7 @@ await this.waitForSockets()
             rcoins[sn].counterfeit, rcoins[sn].errors, this)
         }
 
-        switch(rcoins[sn].result) {
+        switch (rcoins[sn].result) {
           case this.__authenticResult:
             rv.authenticNotes++
             break
@@ -5399,10 +3479,6 @@ await this.waitForSockets()
   }
 
   _gradeCoin(a, f, e) {
-    //if (a + f + e < this._activeServers.length)
-    //  return this.__errorResult
-
-
     if (a >= this.options.minPassedNumToBeAuthentic) {
       if (f > 0) {
         return this.__frackedResult
@@ -5423,7 +3499,8 @@ await this.waitForSockets()
       an: []
     }
 
-    if (typeof(params) !== 'object') {
+    console.log(params)
+    if (typeof (params) !== 'object') {
       console.error("Invalid input data")
       return null
     }
@@ -5433,6 +3510,7 @@ await this.waitForSockets()
         coin[k] = params[k]
     }
 
+    console.log(params)
     if (!this._validateCoin(coin))
       return null
 
@@ -5457,23 +3535,21 @@ await this.waitForSockets()
   _parseMainPromise(response, arrayLength, rv, callback) {
     for (let i = 0; i < response.length; i++) {
       let serverResponse
-      let dView
 
       if (response[i].status != 'fulfilled' || response[i].value == undefined) {
         this._addDetails(rv)
-        this.addSentryError("Network Error with RAIDA", i, response[i])
         callback("network", i)
         continue
       }
 
-      serverResponse = response[i].value.data
+      //     serverResponse = response[i].value.data
+      serverResponse = response[i].value
 
       //console.log('response from server ', dView.getUint8(0));
       //console.log("status code ", dView.getUint8(2))
       if (arrayLength == 0) {
-        if (typeof(serverResponse) != 'object' || serverResponse.byteLength < 12) {
-          console.error("Invalid response from RAIDA: " + i +". No header/not binary")
-          this.addSentryError("Invalid Response. No header/not binary", i, serverResponse)
+        if (typeof (serverResponse) != 'object' || serverResponse.byteLength < 12) {
+          console.error("Invalid response from RAIDA: " + i + ". No header/not binary")
           this._addDetails(rv)
           callback("error", i)
           continue
@@ -5481,7 +3557,6 @@ await this.waitForSockets()
       } else {
         if (!Array.isArray(serverResponse)) {
           console.error("Expected array from RAIDA: " + i)
-          this.addSentryError("Expected to receive Array from RAIDA. But got something else", i, serverResponse)
           this._addDetails(rv)
           callback("error", i)
           continue
@@ -5489,8 +3564,7 @@ await this.waitForSockets()
 
         if (serverResponse.length != arrayLength) {
           console.error("Invalid length returned from RAIDA: " + i
-            + ". Expected: " + arrayLength +", got " + serverResponse.length)
-          this.addSentryError("Invalid length returned from RAIDA. Expected " + arrayLength + ", got " + serverResponse.length, i, serverResponse)
+            + ". Expected: " + arrayLength + ", got " + serverResponse.length)
           this._addDetails(rv)
           callback("error", i)
           continue
@@ -5511,681 +3585,119 @@ await this.waitForSockets()
     }
   }
 
-    _wsConnect(url, data, i, st) {
-      let thiz = this
+  _wsConnect(data, i, st) {
+    let thiz = this
 
-          if (this._webSockets[i] != null && data != null) {
-            let dv = new DataView(data)
-            return new Promise(function (res, rej) {
-
-
-              thiz._webSockets[i].binaryType = "arraybuffer";
-              dv.setUint8(2, i);
-              thiz._webSockets[i].send(data);
-
-
-              thiz._webSockets[i].onmessage = e => {
-                let restime = Date.now() - st;
-                //console.log("recieving ", i, restime);
-                if(restime > thiz.highestrestime)
-                thiz.highestrestime = restime;
-                res(e);
-                //socket.close(1000);
-              };
-
-              thiz._webSockets[i].onerror = e => {
-                console.log("ws error: ", e.message);
-                rej(e);
-                //socket.close();
-              };
-            });
-          }else{
-      return new Promise((res, rej)=>{rej()});
+    if (this._webSockets[i] == null || data == null) {
+      return new Promise((res, rej) => {
+        rej()
+      })
     }
 
-    }
-    _launchRequests(url, params = null, callback = null, servers = null, data = null) {
-      if (params == null) params = {};
-      let pms = [];
-      let pms2 = [];
-      let firstReply = false;
-      let iteratedServers, iteratedServersIdxs;
+    let dv = new DataView(data)
+    return new Promise(function (res, rej) {
+      thiz._webSockets[i].binaryType = "arraybuffer";
+      dv.setUint8(2, i);
 
-      if (servers != null) {
-        iteratedServers = [];
-
-        for (let i = 0; i < servers.length; i++) {
-          iteratedServers.push(this._raidaServers[servers[i]]);
-        }
-
-        iteratedServersIdxs = servers;
-      } else {
-        iteratedServers = this._raidaServers;
-        iteratedServersIdxs = [...Array(this._totalServers).keys()];
+      console.log("Data r" + i)
+      let v = ""
+      for (let p = 0; p < dv.byteLength; p++) {
+        v += "" + dv.getUint8(p) + " "
       }
-
-  let tm = new Promise((res, rej)=>{
-    /*
-  setTimeout(()=>{
-    if(!firstReply)
-    rej("First Reply Timeout");
-  },this.options.timeout);
-  */
-  let st = Date.now();
-  //for (let i = 0; i < iteratedServers.length; i++) {
-
-
-let raidaIdx0 = iteratedServersIdxs[0];
-let raidaIdx1 = iteratedServersIdxs[1];
-let raidaIdx2 = iteratedServersIdxs[2];
-let raidaIdx3 = iteratedServersIdxs[3];
-let raidaIdx4 = iteratedServersIdxs[4];
-let raidaIdx5 = iteratedServersIdxs[5];
-let raidaIdx6 = iteratedServersIdxs[6];
-let raidaIdx7 = iteratedServersIdxs[7];
-let raidaIdx8 = iteratedServersIdxs[8];
-let raidaIdx9 = iteratedServersIdxs[9];
-let raidaIdx10 = iteratedServersIdxs[10];
-let raidaIdx11 = iteratedServersIdxs[11];
-let raidaIdx12 = iteratedServersIdxs[12];
-let raidaIdx13 = iteratedServersIdxs[13];
-let raidaIdx14 = iteratedServersIdxs[14];
-let raidaIdx15 = iteratedServersIdxs[15];
-let raidaIdx16 = iteratedServersIdxs[16];
-let raidaIdx17 = iteratedServersIdxs[17];
-let raidaIdx18 = iteratedServersIdxs[18];
-let raidaIdx19 = iteratedServersIdxs[19];
-let raidaIdx20 = iteratedServersIdxs[20];
-let raidaIdx21 = iteratedServersIdxs[21];
-let raidaIdx22 = iteratedServersIdxs[22];
-let raidaIdx23 = iteratedServersIdxs[23];
-let raidaIdx24 = iteratedServersIdxs[24];
-
-let rq0 = iteratedServers[0]; // + "/service/" + url
-let rq1 = iteratedServers[1]; // + "/service/" + url
-let rq2 = iteratedServers[2]; // + "/service/" + url
-let rq3 = iteratedServers[3]; // + "/service/" + url
-let rq4 = iteratedServers[4]; // + "/service/" + url
-let rq5 = iteratedServers[5]; // + "/service/" + url
-let rq6 = iteratedServers[6]; // + "/service/" + url
-let rq7 = iteratedServers[7]; // + "/service/" + url
-let rq8 = iteratedServers[8]; // + "/service/" + url
-let rq9 = iteratedServers[9]; // + "/service/" + url
-let rq10 = iteratedServers[10]; // + "/service/" + url
-let rq11 = iteratedServers[11]; // + "/service/" + url
-let rq12 = iteratedServers[12]; // + "/service/" + url
-let rq13 = iteratedServers[13]; // + "/service/" + url
-let rq14 = iteratedServers[14]; // + "/service/" + url
-let rq15 = iteratedServers[15]; // + "/service/" + url
-let rq16 = iteratedServers[16]; // + "/service/" + url
-let rq17 = iteratedServers[17]; // + "/service/" + url
-let rq18 = iteratedServers[18]; // + "/service/" + url
-let rq19 = iteratedServers[19]; // + "/service/" + url
-let rq20 = iteratedServers[20]; // + "/service/" + url
-let rq21 = iteratedServers[21]; // + "/service/" + url
-let rq22 = iteratedServers[22]; // + "/service/" + url
-let rq23 = iteratedServers[23]; // + "/service/" + url
-let rq24 = iteratedServers[24]; // + "/service/" + url
-
-
-
-let pm0,pm1,pm2,pm3,pm4,pm5,pm6,pm7,pm8,pm9,pm10,pm11,pm12,pm13,pm14,pm15,pm16,pm17,pm18,pm19,pm20,pm21,pm22,pm23,pm24;
-let rparams0,rparams1,rparams2,rparams3,rparams4,rparams5,rparams6,rparams7,rparams8,rparams9,rparams10,rparams11,rparams12,rparams13,rparams14,rparams15,rparams16,rparams17,rparams18,rparams19,rparams20,rparams21,rparams22,rparams23,rparams24;
-
-    let options = {
-      timeout: this.options.timeout
-    };
-
-
-
-
-if (typeof params === 'object' && Array.isArray(params)) {
-  rparams0 = params[raidaIdx0];
-rparams1 = params[raidaIdx1];
-rparams2 = params[raidaIdx2];
-rparams3 = params[raidaIdx3];
-rparams4 = params[raidaIdx4];
-rparams5 = params[raidaIdx5];
-rparams6 = params[raidaIdx6];
-rparams7 = params[raidaIdx7];
-rparams8 = params[raidaIdx8];
-rparams9 = params[raidaIdx9];
-rparams10 = params[raidaIdx10];
-rparams11 = params[raidaIdx11];
-rparams12 = params[raidaIdx12];
-rparams13 = params[raidaIdx13];
-rparams14 = params[raidaIdx14];
-rparams15 = params[raidaIdx15];
-rparams16 = params[raidaIdx16];
-rparams17 = params[raidaIdx17];
-rparams18 = params[raidaIdx18];
-rparams19 = params[raidaIdx19];
-rparams20 = params[raidaIdx20];
-rparams21 = params[raidaIdx21];
-rparams22 = params[raidaIdx22];
-rparams23 = params[raidaIdx23];
-rparams24 = params[raidaIdx24];
-} else {
-  rparams0 = params;
-rparams1 = params;
-rparams2 = params;
-rparams3 = params;
-rparams4 = params;
-rparams5 = params;
-rparams6 = params;
-rparams7 = params;
-rparams8 = params;
-rparams9 = params;
-rparams10 = params;
-rparams11 = params;
-rparams12 = params;
-rparams13 = params;
-rparams14 = params;
-rparams15 = params;
-rparams16 = params;
-rparams17 = params;
-rparams18 = params;
-rparams19 = params;
-rparams20 = params;
-rparams21 = params;
-rparams22 = params;
-rparams23 = params;
-rparams24 = params;
-}
-
-    pm0 = this._wsConnect(rq0, rparams0, raidaIdx0, st);
-pm1 = this._wsConnect(rq1, rparams1, raidaIdx1, st);
-pm2 = this._wsConnect(rq2, rparams2, raidaIdx2, st);
-pm3 = this._wsConnect(rq3, rparams3, raidaIdx3, st);
-pm4 = this._wsConnect(rq4, rparams4, raidaIdx4, st);
-pm5 = this._wsConnect(rq5, rparams5, raidaIdx5, st);
-pm6 = this._wsConnect(rq6, rparams6, raidaIdx6, st);
-pm7 = this._wsConnect(rq7, rparams7, raidaIdx7, st);
-pm8 = this._wsConnect(rq8, rparams8, raidaIdx8, st);
-pm9 = this._wsConnect(rq9, rparams9, raidaIdx9, st);
-pm10 = this._wsConnect(rq10, rparams10, raidaIdx10, st);
-pm11 = this._wsConnect(rq11, rparams11, raidaIdx11, st);
-pm12 = this._wsConnect(rq12, rparams12, raidaIdx12, st);
-pm13 = this._wsConnect(rq13, rparams13, raidaIdx13, st);
-pm14 = this._wsConnect(rq14, rparams14, raidaIdx14, st);
-pm15 = this._wsConnect(rq15, rparams15, raidaIdx15, st);
-pm16 = this._wsConnect(rq16, rparams16, raidaIdx16, st);
-pm17 = this._wsConnect(rq17, rparams17, raidaIdx17, st);
-pm18 = this._wsConnect(rq18, rparams18, raidaIdx18, st);
-pm19 = this._wsConnect(rq19, rparams19, raidaIdx19, st);
-pm20 = this._wsConnect(rq20, rparams20, raidaIdx20, st);
-pm21 = this._wsConnect(rq21, rparams21, raidaIdx21, st);
-pm22 = this._wsConnect(rq22, rparams22, raidaIdx22, st);
-pm23 = this._wsConnect(rq23, rparams23, raidaIdx23, st);
-pm24 = this._wsConnect(rq24, rparams24, raidaIdx24, st);
-
-pm0.then(response => {
-if (callback != null) callback(raidaIdx0, url, data);
-pms2[0] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 0 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 0, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 0);
-this.addSentryError("Failed to get any response from RAIDA", 0, error);
-}
-
-return null;
-});
-pms.push(pm0);
-
-
-
-pm1.then(response => {
-if (callback != null) callback(raidaIdx1, url, data);
-pms2[1] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 1 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 1, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 1);
-this.addSentryError("Failed to get any response from RAIDA", 1, error);
-}
-
-return null;
-});
-pms.push(pm1);
-
-
-
-pm2.then(response => {
-if (callback != null) callback(raidaIdx2, url, data);
-pms2[2] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 2 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 2, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 2);
-this.addSentryError("Failed to get any response from RAIDA", 2, error);
-}
-
-return null;
-});
-pms.push(pm2);
-
-
-pm3.then(response => {
-if (callback != null) callback(raidaIdx3, url, data);
-pms2[3] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 3 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 3, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 3);
-this.addSentryError("Failed to get any response from RAIDA", 3, error);
-}
-
-return null;
-});
-pms.push(pm3);
-
-pm4.then(response => {
-if (callback != null) callback(raidaIdx4, url, data);
-pms2[4] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 4 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 4, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 4);
-this.addSentryError("Failed to get any response from RAIDA", 4, error);
-}
-
-return null;
-});
-pms.push(pm4);
-
-
-pm5.then(response => {
-if (callback != null) callback(raidaIdx5, url, data);
-pms2[5] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 5 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 5, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 5);
-this.addSentryError("Failed to get any response from RAIDA", 5, error);
-}
-
-return null;
-});
-pms.push(pm5);
-
-
-pm6.then(response => {
-if (callback != null) callback(raidaIdx6, url, data);
-pms2[6] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 6 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 6, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 6);
-this.addSentryError("Failed to get any response from RAIDA", 6, error);
-}
-
-return null;
-});
-pms.push(pm6);
-
-
-pm7.then(response => {
-if (callback != null) callback(raidaIdx7, url, data);
-pms2[7] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 7 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 7, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 7);
-this.addSentryError("Failed to get any response from RAIDA", 7, error);
-}
-
-return null;
-});
-pms.push(pm7);
-
-
-pm8.then(response => {
-if (callback != null) callback(raidaIdx8, url, data);
-pms2[8] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 8 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 8, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 8);
-this.addSentryError("Failed to get any response from RAIDA", 8, error);
-}
-
-return null;
-});
-pms.push(pm8);
-
-
-pm9.then(response => {
-if (callback != null) callback(raidaIdx9, url, data);
-pms2[9] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 9 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 9, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 9);
-this.addSentryError("Failed to get any response from RAIDA", 9, error);
-}
-
-return null;
-});
-pms.push(pm9);
-
-
-pm10.then(response => {
-if (callback != null) callback(raidaIdx10, url, data);
-pms2[10] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 10 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 10, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 10);
-this.addSentryError("Failed to get any response from RAIDA", 10, error);
-}
-
-return null;
-});
-pms.push(pm10);
-
-
-pm11.then(response => {
-if (callback != null) callback(raidaIdx11, url, data);
-pms2[11] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 11 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 11, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 11);
-this.addSentryError("Failed to get any response from RAIDA", 11, error);
-}
-
-return null;
-});
-pms.push(pm11);
-
-
-pm12.then(response => {
-if (callback != null) callback(raidaIdx12, url, data);
-pms2[12] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 12 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 12, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 12);
-this.addSentryError("Failed to get any response from RAIDA", 12, error);
-}
-
-return null;
-});
-pms.push(pm12);
-
-
-pm13.then(response => {
-if (callback != null) callback(raidaIdx13, url, data);
-pms2[13] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 13 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 13, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 13);
-this.addSentryError("Failed to get any response from RAIDA", 13, error);
-}
-
-return null;
-});
-pms.push(pm13);
-
-
-pm14.then(response => {
-if (callback != null) callback(raidaIdx14, url, data);
-pms2[14] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 14 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 14, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 14);
-this.addSentryError("Failed to get any response from RAIDA", 14, error);
-}
-
-return null;
-});
-pms.push(pm14);
-
-
-pm15.then(response => {
-if (callback != null) callback(raidaIdx15, url, data);
-pms2[15] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 15 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 15, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 15);
-this.addSentryError("Failed to get any response from RAIDA", 15, error);
-}
-
-return null;
-});
-pms.push(pm15);
-
-
-pm16.then(response => {
-if (callback != null) callback(raidaIdx16, url, data);
-pms2[16] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 16 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 16, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 16);
-this.addSentryError("Failed to get any response from RAIDA", 16, error);
-}
-
-return null;
-});
-pms.push(pm16);
-
-
-pm17.then(response => {
-if (callback != null) callback(raidaIdx17, url, data);
-pms2[17] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 17 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 17, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 17);
-this.addSentryError("Failed to get any response from RAIDA", 17, error);
-}
-
-return null;
-});
-pms.push(pm17);
-
-
-pm18.then(response => {
-if (callback != null) callback(raidaIdx18, url, data);
-pms2[18] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 18 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 18, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 18);
-this.addSentryError("Failed to get any response from RAIDA", 18, error);
-}
-
-return null;
-});
-pms.push(pm18);
-
-
-pm19.then(response => {
-if (callback != null) callback(raidaIdx19, url, data);
-pms2[19] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 19 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 19, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 19);
-this.addSentryError("Failed to get any response from RAIDA", 19, error);
-}
-
-return null;
-});
-pms.push(pm19);
-
-
-pm20.then(response => {
-if (callback != null) callback(raidaIdx20, url, data);
-pms2[20] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 20 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 20, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 20);
-this.addSentryError("Failed to get any response from RAIDA", 20, error);
-}
-
-return null;
-});
-pms.push(pm20);
-
-
-pm21.then(response => {
-if (callback != null) callback(raidaIdx21, url, data);
-pms2[21] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 21 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 21, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 21);
-this.addSentryError("Failed to get any response from RAIDA", 21, error);
-}
-
-return null;
-});
-pms.push(pm21);
-
-
-pm22.then(response => {
-if (callback != null) callback(raidaIdx22, url, data);
-pms2[22] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 22 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 22, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 22);
-this.addSentryError("Failed to get any response from RAIDA", 22, error);
-}
-
-return null;
-});
-pms.push(pm22);
-
-
-pm23.then(response => {
-if (callback != null) callback(raidaIdx23, url, data);
-pms2[23] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 23 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 23, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 23);
-this.addSentryError("Failed to get any response from RAIDA", 23, error);
-}
-
-return null;
-});
-pms.push(pm23);
-
-
-pm24.then(response => {
-if (callback != null) callback(raidaIdx24, url, data);
-pms2[24] = response;
-return response.data;
-}).catch(error => {
-if (error.response) {
-console.error("Invalid server response from RAIDA" + 24 + ": " + error.response.status);
-this.addSentryError("Invalid response from RAIDA", 24, error);
-} else {
-console.error("Failed to get a respose from RAIDA" + 24);
-this.addSentryError("Failed to get any response from RAIDA", 24, error);
-}
-
-return null;
-});
-pms.push(pm24);
-
-  //}
-  Promise.race(pms).then(r=>{
-    firstReply = true;
-    setTimeout(()=>{res()}, this.options.nexttimeout);})//next reply timeout
-  Promise.allSettled(pms).then(r=>{res()});
-}).then(r=>{
-this.options.nexttimeout = this.highestrestime + 1000;
-  return allSettled(pms2);});
-
-      return tm;
+      console.log(v)
+
+      thiz._webSockets[i].onmessage = e => {
+        let restime = Date.now() - st;
+        if (restime > thiz.highestrestime)
+          thiz.highestrestime = restime;
+        res(e);
+      };
+
+      thiz._webSockets[i].onerror = e => {
+        console.log("ws error: ", e.message);
+        rej(e);
+      };
+      thiz._webSockets[i].send(data);
+    });
+  }
+
+  _launchRequests(url, params = null, callback = null, servers = null, data = null) {
+    if (params == null) params = {};
+    let iteratedServersIdxs;
+
+    if (servers != null) {
+      iteratedServersIdxs = servers;
+    } else {
+      iteratedServersIdxs = [...Array(this._totalServers).keys()];
     }
+
+    let thiz = this
+    //   let tm = new Promise((res, rej) => {
+    let st = Date.now();
+
+    let rparams = []
+    if (typeof params === 'object' && Array.isArray(params)) {
+      for (let i = 0; i < this._totalServers; i++) {
+        rparams[i] = params[i]
+      }
+    } else {
+      for (let i = 0; i < this._totalServers; i++) {
+        rparams[i] = params
+      }
+    }
+
+    let pms = []
+
+    for (let i = 0; i < iteratedServersIdxs.length; i++) {
+      let ridx = iteratedServersIdxs[i];
+
+      (function (ridx) {
+        let pm = thiz._wsConnect(rparams[ridx], ridx, st).then(response => {
+          if (callback != null) {
+            callback(ridx, url, data)
+          }
+
+          return response.data
+        }).catch(error => {
+          console.log("error. Raida" + ridx)
+          if (typeof (error) != undefined) {
+            console.log(error)
+          }
+          return null
+        })
+        pms.push(pm)
+      })(ridx)
+    }
+
+    return allSettled(pms)
+    /*
+            .then(response => {
+            console.log("all promises settled")
+            console.log(response)
+    
+            res(response)
+          })
+          
+                Promise.race(pms).then(r => {
+                  setTimeout(() => {res()}, this.options.nexttimeout);
+                })//next reply timeout
+                Promise.allSettled(pms).then(r => {res()});
+        }).then(response2 => {
+          console.log("all promises settled external")
+          console.log(response2)
+          //     this.options.nexttimeout = this.highestrestime + 1000;
+          return allSettled(response2);
+        });
+    
+        return tm;
+        */
+  }
 
 
   _initAxios() {
     this._axInstance = axios.create({
       headers: {
-        'Content-Type' : 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded'
       }
     })
     this._axInstance.defaults.timeout = this.options.timeout
@@ -6194,12 +3706,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
 
   // Generate the array of RAIDA server URLs
   _generateServers() {
-    /*
-    for (let i = 0; i < this._totalServers; i++)
-      this._raidaServers[i] = this.options.protocol + "://" + this.options.prefix
-        + i + "." +this.options.domain
-    */
-    if(this.options.wsprotocol == "wss"){
+    if (this.options.wsprotocol == "wss") {
       this._raidaServers[0] = this.options.wsprotocol + "://ebc0-99a2-92e-10420.skyvault.cc:8888";
       this._raidaServers[1] = this.options.wsprotocol + "://ebc2-4555a2-92e-10422.skyvault.cc:8888";
       this._raidaServers[2] = this.options.wsprotocol + "://ebc4-9aes2-92e-10424.skyvault.cc:8888";
@@ -6226,92 +3733,110 @@ this.options.nexttimeout = this.highestrestime + 1000;
       this._raidaServers[23] = this.options.wsprotocol + "://7cbdbe-2arbf-e29-64401.skyvault.cc:8888";
       this._raidaServers[24] = this.options.wsprotocol + "://ebc48-adea2-92e-10448.skyvault.cc:8888";
     }
-    else{
-    this._raidaServers[0] = this.options.wsprotocol + "://87.120.8.249:8888";
-    this._raidaServers[1] = this.options.wsprotocol + "://23.106.122.6:8888";
-    this._raidaServers[2] = this.options.wsprotocol + "://172.105.176.86:8888";
-    this._raidaServers[3] = this.options.wsprotocol + "://85.195.82.169:8888";
-    this._raidaServers[4] = this.options.wsprotocol + "://198.244.135.236:8888";
-    this._raidaServers[5] = this.options.wsprotocol + "://88.119.174.101:8888";
-    this._raidaServers[6] = this.options.wsprotocol + "://209.141.52.193:8888";
-    this._raidaServers[7] = this.options.wsprotocol + "://179.43.175.35:8888";
-    this._raidaServers[8] = this.options.wsprotocol + "://104.161.32.116:8888";
-    this._raidaServers[9] = this.options.wsprotocol + "://66.172.11.25:8888";
-    this._raidaServers[10] = this.options.wsprotocol + "://194.29.186.69:8888";
-    this._raidaServers[11] = this.options.wsprotocol + "://168.235.69.182:8888";
-    this._raidaServers[12] = this.options.wsprotocol + "://185.118.164.19:8888";
-    this._raidaServers[13] = this.options.wsprotocol + "://167.88.15.117:8888";
-    this._raidaServers[14] = this.options.wsprotocol + "://23.29.115.137:8888";
-    this._raidaServers[15] = this.options.wsprotocol + "://66.29.143.85:8888";
-    this._raidaServers[16] = this.options.wsprotocol + "://185.99.133.110:8888";
-    this._raidaServers[17] = this.options.wsprotocol + "://104.168.162.230:8888";
-    this._raidaServers[18] = this.options.wsprotocol + "://170.75.170.4:8888";
-    this._raidaServers[19] = this.options.wsprotocol + "://185.215.227.31:8888";
-    this._raidaServers[20] = this.options.wsprotocol + "://51.222.229.205:8888";
-    this._raidaServers[21] = this.options.wsprotocol + "://31.192.107.132:8888";
-    this._raidaServers[22] = this.options.wsprotocol + "://180.235.135.143:8888";
-    this._raidaServers[23] = this.options.wsprotocol + "://80.233.134.148:8888";
-    this._raidaServers[24] = this.options.wsprotocol + "://147.182.249.132:8888";
+    else {
+      this._raidaServers[0] = this.options.wsprotocol + "://87.120.8.249:8888";
+      this._raidaServers[1] = this.options.wsprotocol + "://23.106.122.6:8888";
+      this._raidaServers[2] = this.options.wsprotocol + "://172.105.176.86:8888";
+      this._raidaServers[3] = this.options.wsprotocol + "://85.195.82.169:8888";
+      this._raidaServers[4] = this.options.wsprotocol + "://198.244.135.236:8888";
+      this._raidaServers[5] = this.options.wsprotocol + "://88.119.174.101:8888";
+      this._raidaServers[6] = this.options.wsprotocol + "://209.141.52.193:8888";
+      this._raidaServers[7] = this.options.wsprotocol + "://179.43.175.35:8888";
+      this._raidaServers[8] = this.options.wsprotocol + "://104.161.32.116:8888";
+      this._raidaServers[9] = this.options.wsprotocol + "://66.172.11.25:8888";
+      this._raidaServers[10] = this.options.wsprotocol + "://194.29.186.69:8888";
+      this._raidaServers[11] = this.options.wsprotocol + "://168.235.69.182:8888";
+      this._raidaServers[12] = this.options.wsprotocol + "://185.118.164.19:8888";
+      this._raidaServers[13] = this.options.wsprotocol + "://167.88.15.117:8888";
+      this._raidaServers[14] = this.options.wsprotocol + "://23.29.115.137:8888";
+      this._raidaServers[15] = this.options.wsprotocol + "://66.29.143.85:8888";
+      this._raidaServers[16] = this.options.wsprotocol + "://185.99.133.110:8888";
+      this._raidaServers[17] = this.options.wsprotocol + "://104.168.162.230:8888";
+      this._raidaServers[18] = this.options.wsprotocol + "://170.75.170.4:8888";
+      this._raidaServers[19] = this.options.wsprotocol + "://185.215.227.31:8888";
+      this._raidaServers[20] = this.options.wsprotocol + "://51.222.229.205:8888";
+      this._raidaServers[21] = this.options.wsprotocol + "://31.192.107.132:8888";
+      this._raidaServers[22] = this.options.wsprotocol + "://180.235.135.143:8888";
+      this._raidaServers[23] = this.options.wsprotocol + "://80.233.134.148:8888";
+      this._raidaServers[24] = this.options.wsprotocol + "://147.182.249.132:8888";
+    }
   }
-  }
 
 
-   _initSockets(){
-      let st = Date.now();
+  async _initSockets() {
+    let st = Date.now();
 
-      for(let i = 0; i < this._totalServers; i++){
+    let pms = []
+    let thiz = this;
+    for (let i = 0; i < this._totalServers; i++) {
+      this._activeServers[i] = false
+      pms[i] = new Promise((resolve, reject) => {
         let socket;
-         if (_isBrowser) socket = new WebSocket(this._raidaServers[i]);else {
+        if (_isBrowser)
+          socket = new WebSocket(this._raidaServers[i]);
+        else {
           socket = new _ws(this._raidaServers[i]);
         }
-        socket.onopen = e =>{
-          console.log("initializing raida", i,", milliseconds:", Date.now() - st);
-          this._webSockets[i] = socket;
-          this._activeServers.push(i);
-        }
 
-        socket.onerror = e => {
-          console.log("ws error: ", e.message);
-          if(!this._inactiveServers.includes(i))
-          {this._inactiveServers.push(i);}
-          socket.close();
-        };
-      }
-      setTimeout(()=>{
-        for(let i = 0; i < this._totalServers; i++){
-          if(!this._activeServers.includes(i) && !this._inactiveServers.includes(i)){
-            this._inactiveServers.push(i);
+
+        // Closure. Required to close 'i' 
+        (function (i) {
+          socket.onopen = () => {
+            console.log("initializing raida", i, ", milliseconds:", Date.now() - st);
+            thiz._webSockets[i] = socket;
+            resolve()
           }
-        }
-      }, 10000);
+
+          socket.onerror = e => {
+            console.log("error opening WebSocket for raida" + i + ", error: ");
+            console.log(e)
+            socket.close();
+            thiz._webSockets[i] = null;
+            resolve()
+          };
+
+          socket.onclose = e => {
+            thiz._webSockets[i] = null;
+            resolve()
+            if (e.wasClean) {
+              console.log("Connection to raida" + i + " was closed")
+            } else {
+              console.log("Connection to raida" + i + " died")
+            }
+          }
+          setTimeout(() => {
+            if (typeof (thiz._webSockets[i]) == 'undefined') {
+              console.log("failed to wait for raida" + i + ". Timeout. Terminating")
+              socket.close()
+            }
+          }, 10000);
+        })(i)
+      })
     }
 
-    async waitForSockets(){
-      if(this._activeServers.length + this._inactiveServers.length == this._totalServers) return;
-       let ready = 0;
-       while(ready == 0){
-         await new Promise((resolve) =>{
-           setTimeout(() => resolve(this._activeServers.length + this._inactiveServers.length == this._totalServers ? 1:0), 500);
-         }).then(res => ready = res);
-       }
-    }
+    this.pmall = pms
+  }
+
+  async waitForSockets() {
+    console.log("waiting for sockets")
+
+    return Promise.all(this.pmall)
+  }
 
 
 
-    closeSockets(){
-      for(let i = 0; i < this._webSockets.length; i++){
-        if(this._webSockets[i] != null){
-          //console.log("closing ", i);
-          this._webSockets[i].close(1000);
-        }
-
+  closeSockets() {
+    for (let i = 0; i < this._webSockets.length; i++) {
+      if (this._webSockets[i] != null) {
+        this._webSockets[i].close(1000);
       }
     }
+  }
 
 
   // Check if the coin is valid
   _validateCoin(coin) {
-    if (typeof(coin) !== 'object')
+    if (typeof (coin) !== 'object')
       return false;
 
     if (!('sn' in coin))
@@ -6320,11 +3845,11 @@ this.options.nexttimeout = this.highestrestime + 1000;
     if (!('an' in coin))
       return false;
 
-    if (typeof(coin.an) != 'object' || !Array.isArray(coin.an))
+    if (typeof (coin.an) != 'object' || !Array.isArray(coin.an))
       return false
 
     if ('pan' in coin) {
-      if (typeof(coin.pan) != 'object' || !Array.isArray(coin.pan))
+      if (typeof (coin.pan) != 'object' || !Array.isArray(coin.pan))
         return false
 
       if (coin.pan.length != coin.an.length)
@@ -6372,7 +3897,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
     // Determine the chunk size
     for (let i = 0; i < this._totalServers; i++) {
       if (mparts[i] == null)
-              continue
+        continue
 
       cs = mparts[i]['stripe'].length
       break
@@ -6384,7 +3909,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
 
     let collected = []
     for (let i = 0; i < this._totalServers; i++) {
-      if (mparts[i] == null || typeof(mparts[i]) == 'undefined')
+      if (mparts[i] == null || typeof (mparts[i]) == 'undefined')
         continue
 
       if (!mparts[i]['stripe'] || !mparts[i]['mirror1'] || !mparts[i]['mirror2'])
@@ -6421,7 +3946,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
 
     // Check if the message is full
     for (let i = 0; i < msg.length; i++) {
-      if (typeof(msg[i]) == 'undefined') {
+      if (typeof (msg[i]) == 'undefined') {
         return null
       }
     }
@@ -6523,9 +4048,9 @@ this.options.nexttimeout = this.highestrestime + 1000;
       return null
     }
 
-    let rv =  {
-      'metadata' : data['general'],
-      'data' : vals[1]
+    let rv = {
+      'metadata': data['general'],
+      'data': vals[1]
     }
 
     if (vals.length == 3) {
@@ -6535,16 +4060,10 @@ this.options.nexttimeout = this.highestrestime + 1000;
     return rv
   }
 
-  _getStripesMirrorsForObjectMemo(guid, memo, amount, from) {
-    let str = "[general]\n"
-
-    let date = Math.floor(Date.now() / 1000)
-
-    str += "date=" + date + "\n"
-    str += "guid=" + guid + "\n"
-    str += "from=" + from + "\n"
-    str += "amount=" + amount + "\n"
-    str += "description=" + memo + "\n"
+  _getStripesMirrorsForObjectMemo(memo, from) {
+    let str = ""
+    str += "sender_address=" + from + "\n"
+    str += "memo=" + memo + ""
 
     str = this._b64EncodeUnicode(str)
     let data = this._splitMessage(str)
@@ -6552,13 +4071,13 @@ this.options.nexttimeout = this.highestrestime + 1000;
     return data
   }
 
-  _getObjectMemo(guid, memo, amount, from) {
-    let data = this._getStripesMirrorsForObjectMemo(guid, memo, amount, from)
+  _getObjectMemo(memo, from) {
+    let data = this._getStripesMirrorsForObjectMemo(memo, from)
 
     let d = []
     let ms = this.options.memoMetadataSeparator
     for (let i = 0; i < this._totalServers; i++) {
-      d[i] = memo + ms + guid + ms + data[i]['stripe'] + ms + data[i]['mirror1'] + ms + data[i]['mirror2']
+      d[i] = data[i]['stripe'] + ms + data[i]['mirror1'] + ms + data[i]['mirror2']
     }
 
     return d
@@ -6579,9 +4098,9 @@ this.options.nexttimeout = this.highestrestime + 1000;
     let nrmessage = []
     for (let i = 0; i < this._totalServers; i++) {
       nrmessage[i] = {
-        'stripe' : "",
-        'mirror1' : "",
-        'mirror2' : ""
+        'stripe': "",
+        'mirror1': "",
+        'mirror2': ""
       }
     }
 
@@ -6639,7 +4158,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
     let output
 
     if (_isBrowser) {
-      output = decodeURIComponent(atob(str).split('').map(function(c) {
+      output = decodeURIComponent(atob(str).split('').map(function (c) {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
       }).join(''));
     } else {
@@ -6649,319 +4168,24 @@ this.options.nexttimeout = this.highestrestime + 1000;
     return output
   }
 
-  // Neighbour table
-  _getNeighbour(raidaIdx, offset) {
-    let result = raidaIdx + offset
-
-    if (result < 0)
-      result += this._totalServers
-
-    if (result >= this._totalServers)
-      result -= this._totalServers
-
-    return result
-  }
-
-  _initNeighbours() {
-    let sideSize
-
-    sideSize = Math.sqrt(this._totalServers)
-    if (sideSize * sideSize != this._totalServers) {
-      console.error("Invalid RAIDA dimensions")
-      return
-    }
-
-    let trustedServers = Array(this._totalServers)
-    let trustedTriads =  Array(this._totalServers)
-    for (let i = 0; i < this._totalServers; i++) {
-      trustedServers[i] = []
-
-      trustedServers[i][0] = this._getNeighbour(i, -sideSize - 1)
-      trustedServers[i][1] = this._getNeighbour(i, -sideSize)
-      trustedServers[i][2] = this._getNeighbour(i, -sideSize + 1)
-      trustedServers[i][3] = this._getNeighbour(i, -1)
-      trustedServers[i][4] = this._getNeighbour(i, 1)
-      trustedServers[i][5] = this._getNeighbour(i, sideSize - 1)
-      trustedServers[i][6] = this._getNeighbour(i, sideSize)
-      trustedServers[i][7] = this._getNeighbour(i, sideSize + 1)
-
-      trustedTriads[i] = Array(4)
-      trustedTriads[i][0] = [ trustedServers[i][0], trustedServers[i][1], trustedServers[i][3], trustedServers[i][7] ]
-      trustedTriads[i][1] = [ trustedServers[i][1], trustedServers[i][2], trustedServers[i][4], trustedServers[i][5] ]
-      trustedTriads[i][2] = [ trustedServers[i][3], trustedServers[i][5], trustedServers[i][6], trustedServers[i][2] ]
-      trustedTriads[i][3] = [ trustedServers[i][4], trustedServers[i][6], trustedServers[i][7], trustedServers[i][0] ]
-    }
-
-    this._trustedTriads = trustedTriads
-  }
-
-  _getA(a, cnt) {
-    let i, j
-    let sns = Array(cnt)
-
-    for (i = 0, j = 0; i < sns.length; i++) {
-      if (a[i] == 0)
-        continue;
-
-      sns[j] = a[i]
-      a[i] = 0
-      j++
-
-      if (j == cnt)
-        break
-    }
-
-    if (j != cnt)
-      return null
-
-    return sns
-  }
-
-  _get25B(sb, ss) {
-    let sns, rsns
-    rsns = Array(9)
-
-    sns = this._getA(sb, 4)
-    if (sns == null)
-      return null
-    for (let i = 0; i < 4; i++)
-      rsns[i] = sns[i]
-
-    sns = this._getA(ss, 5)
-    if (sns == null)
-      return null
-    for (let i = 0; i < 5; i++)
-      rsns[i + 4] = sns[i]
-
-    return rsns
-  }
-
-  _get100E(sb, ss, sss) {
-    let sns, rsns
-    rsns = Array(12)
-
-    sns = this._getA(sb, 3)
-    if (sns == null)
-      return null
-
-    for (let i = 0; i < 3; i++)
-      rsns[i] = sns[i]
-
-    sns = this._getA(ss, 4)
-    if (sns == null)
-      return null
-
-    for (let i = 0; i < 4; i++)
-      rsns[i + 3] = sns[i]
-
-    sns = this._getA(sss, 5)
-    if (sns == null)
-      return null
-
-    for (let i = 0; i < 5; i++)
-      rsns[i + 7] = sns[i]
-
-    return rsns
-  }
-
-  _get250E(sb, ss, sss, ssss) {
-    let sns, rsns
-    rsns = new Array(12)
-
-    sns = this._getA(sb, 2)
-    if (sns == null)
-      return null
-    for (let i = 0; i < 2; i++)
-      rsns[i] = sns[i]
-
-    sns = this._getA(ss, 1)
-    if (sns == null)
-      return null
-    rsns[2] = sns[0]
-
-    sns = this._getA(sss, 4)
-    if (sns == null)
-      return null
-    for (let i = 0; i < 4; i++)
-      rsns[i + 3] = sns[i]
-
-    sns = this._getA(ssss, 5)
-    if (sns == null)
-      return null
-    for (let i = 0; i < 5; i++)
-      rsns[i + 7] = sns[i]
-
-    return rsns
-  }
-
   _calcAmount(sns) {
     let total = 0
     for (let i = 0; i < sns.length; i++)
-      total += this.getDenomination(sns[i])
+      total++
 
     return total
   }
 
-  _countCoinsFromArray(coins) {
-    let totals = new Array(6);
-    totals.fill(0)
-
-    for (let i = 0; i < coins.length; i++) {
-      let denomination = this.getDenomination(coins[i]);
-      if (denomination == 1)
-        totals[0]++;
-      else if (denomination == 5)
-        totals[1]++;
-      else if (denomination == 25)
-        totals[2]++;
-      else if (denomination == 100)
-        totals[3]++;
-      else if (denomination == 250)
-        totals[4]++
-      else
-        continue;
-
-      totals[5] += denomination;
-    }
-
-    return totals;
-  }
-
-  _getExpCoins(amount, totals, loose) {
-    let savedAmount = amount;
-
-    if (amount > totals[6]) {
-      console.error("Not enough coins")
-      return null;
-    }
-
-    if (amount < 0)
-      return null;
-
-    let exp_1, exp_5, exp_25, exp_100, exp_250
-    exp_1 = exp_5 = exp_25 = exp_100 = exp_250 = 0
-    for (let i = 0; i < 2; i++) {
-      exp_1 = exp_5 = exp_25 = exp_100 = 0
-      if (i == 0 && amount >= 250 && totals[4] > 0) {
-        exp_250 = (Math.floor(amount / 250) < (totals[4])) ? Math.floor(amount / 250) : (totals[4])
-        amount -= (exp_250 * 250);
-      }
-
-      if (amount >= 100 && totals[3] > 0) {
-        exp_100 = (Math.floor(amount / 100) < (totals[3])) ? Math.floor(amount / 100) : (totals[3])
-        amount -= (exp_100 * 100);
-      }
-
-      if (amount >= 25 && totals[2] > 0) {
-        exp_25 = (Math.floor(amount / 25) < (totals[2])) ? Math.floor(amount / 25) : (totals[2])
-        amount -= (exp_25 * 25);
-      }
-
-      if (amount >= 5 && totals[1] > 0) {
-        exp_5 = (Math.floor(amount / 5) < (totals[1])) ? Math.floor(amount / 5) : (totals[1])
-        amount -= (exp_5 * 5);
-      }
-
-      if (amount >= 1 && totals[0] > 0) {
-        exp_1 = (amount < (totals[0])) ? amount : (totals[0])
-        amount -= (exp_1);
-      }
-
-      if (amount == 0)
-        break;
-
-      if (i == 1 || exp_250 == 0) {
-        if (loose)
-          break;
-
-        return null;
-      }
-
-      exp_250--
-      amount = savedAmount - exp_250 * 250
-    }
-
-    let rv = new Array(5)
-    rv[0] = exp_1
-    rv[1] = exp_5
-    rv[2] = exp_25
-    rv[3] = exp_100
-    rv[4] = exp_250
-
-    return rv
-  }
-
-
   _pickCoinsAmountFromArrayWithExtra(coins, amount) {
-    let totals, exps
-    let collected, rest
-    let denomination
     let coinsPicked = []
+    for (let j = 0; j < coins.length; j++) {
+      if (j == amount)
+        break
 
-    totals = this._countCoinsFromArray(coins)
-    exps = this._getExpCoins(amount, totals, true)
-
-    collected = rest = 0
-    for (let i = 0; i < coins.length; i++) {
-      denomination = this.getDenomination(coins[i]);
-      if (denomination == 1) {
-        if (exps[0]-- > 0) {
-          coinsPicked.push(coins[i])
-          collected += denomination
-        }
-      } else if (denomination == 5) {
-        if (exps[1]-- > 0) {
-          coinsPicked.push(coins[i])
-          collected += denomination
-        }
-      } else if (denomination == 25) {
-        if (exps[2]-- > 0) {
-          coinsPicked.push(coins[i])
-          collected += denomination
-        }
-      } else if (denomination == 100) {
-        if (exps[3]-- > 0) {
-          coinsPicked.push(coins[i])
-          collected += denomination
-        }
-      } else if (denomination == 250) {
-        if (exps[4]-- > 0) {
-          coinsPicked.push(coins[i])
-          collected += denomination
-        }
-      }
-    }
-    let isAdded;
-    rest = amount - collected;
-    let extraSN = 0
-
-    if (rest == 0) {
-      return {coins: coinsPicked, extra: 0};
+      coinsPicked.push(coins[j])
     }
 
-    for (let i = 0; i < coins.length; i++) {
-      denomination = this.getDenomination(coins[i])
-      extraSN = coins[i]
-
-      if (rest > denomination)
-        continue;
-
-      isAdded = false;
-      for (let j = 0; j < coinsPicked.length; j++) {
-        if (coinsPicked[j] == coins[i]) {
-          isAdded = true
-          break
-        }
-      }
-
-      if (isAdded) {
-        continue;
-      }
-
-      break;
-    }
-
-    return {coins: coinsPicked, extra: extraSN};
+    return {coins: coinsPicked};
   }
 
   _validateCard(cardnumber, cvv) {
@@ -7013,23 +4237,21 @@ this.options.nexttimeout = this.highestrestime + 1000;
 
   // Error return
   _getError(msg) {
-    this.addBreadCrumbError("Returning Error To Client: " + msg)
     return {
-      'status' : 'error',
-      'errorText' : msg
+      'status': 'error',
+      'errorText': msg
     }
   }
 
   // Error Code Return
   _getErrorCode(code, msg) {
-    this.addBreadCrumbError("Returning Error Code To Client: " + code + ": " + msg)
     return {
       // Legacy
-      'status' : 'error',
+      'status': 'error',
       'errorText': msg,
 
-      'code' : code,
-      'text' : msg
+      'code': code,
+      'text': msg
     }
   }
 
@@ -7076,7 +4298,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
   }
 
   _base64ArrayBuffer(bytes) {
-    let base64  = ''
+    let base64 = ''
     let encodings = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
     let byteLength = bytes.length
@@ -7094,7 +4316,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
       // Use bitmasks to extract 6-bit segments from the triplet
       a = (chunk & 16515072) >> 18
       b = (chunk & 258048) >> 12
-      c = (chunk & 4032) >>  6
+      c = (chunk & 4032) >> 6
       d = chunk & 63
 
       // Convert the raw binary segments to the appropriate ASCII encoding
@@ -7151,7 +4373,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
   }
 
   // Parse INI string and return Object
-  _parseINIString(data){
+  _parseINIString(data) {
     var regex = {
       section: /^\s*\[\s*([^\]]*)\s*\]\s*$/,
       param: /^\s*([^=]+?)\s*=\s*(.*?)\s*$/,
@@ -7162,21 +4384,21 @@ this.options.nexttimeout = this.highestrestime + 1000;
     var lines = data.split(/[\r\n]+/)
     var section = null
 
-    lines.forEach(function(line) {
-      if (regex.comment.test(line)){
+    lines.forEach(function (line) {
+      if (regex.comment.test(line)) {
         return;
-      } else if(regex.param.test(line)){
+      } else if (regex.param.test(line)) {
         var match = line.match(regex.param);
-        if(section){
+        if (section) {
           value[section][match[1]] = match[2];
-        }else{
+        } else {
           value[match[1]] = match[2];
         }
-      } else if (regex.section.test(line)){
+      } else if (regex.section.test(line)) {
         var match = line.match(regex.section);
         value[match[1]] = {};
         section = match[1];
-      } else if (line.length == 0 && section){
+      } else if (line.length == 0 && section) {
         section = null;
       }
     })
@@ -7189,13 +4411,13 @@ this.options.nexttimeout = this.highestrestime + 1000;
     let hashData = {}
     for (let raidaIdx = 0; raidaIdx < serverResponses.length; raidaIdx++) {
       let serverResponse = serverResponses[raidaIdx]
-        if (!serverResponse)
-          continue
+      if (!serverResponse)
+        continue
 
       if (level == 1) {
         let item = serverResponse.data
         let key = item[targetKey]
-        if (typeof(key) == 'undefined')
+        if (typeof (key) == 'undefined')
           continue
 
         if (!(key in hashData))
@@ -7205,7 +4427,7 @@ this.options.nexttimeout = this.highestrestime + 1000;
       } else if (level == 2) {
         for (let j = 0; j < serverResponse.data.length; j++) {
           let item = serverResponse.data[j]
-          if (typeof(item) == 'undefined')
+          if (typeof (item) == 'undefined')
             continue
 
           let key = item[targetKey]
