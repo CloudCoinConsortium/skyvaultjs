@@ -21,7 +21,7 @@ class SkyVaultJS {
       prefix: "raida",
       protocol: "https",
       wsprotocol: "wss",
-      timeout: 10000, // ms
+      timeout: 20000, // ms
       nexttimeout: 5000,
       defaultCoinNn: 1,
       maxFailedRaidas: 5,
@@ -2511,6 +2511,7 @@ class SkyVaultJS {
   async apiShowBalance(coin, callback) {
     if (!coin) return this._getErrorCode(SkyVaultJS.ERR_PARAM_MISSING_COIN, "Coin in missing");
     if (!this._validateCoin(coin)) return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin");
+    await this.waitForSockets()
     let rqdata = [];
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
@@ -2558,7 +2559,12 @@ class SkyVaultJS {
     ra = re = rf = 0;
     await this.waitForSockets()
     let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
+      console.log("main response")
+      console.log(response)
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
+        console.log("response r " +rIdx)
+        console.log(response)
+        console.log(this._activeServers)
         if (!(rIdx in this._activeServers)) {
           rv.raidaStatuses[rIdx] = "u";
           rv.balancesPerRaida[rIdx] = null;
@@ -2626,6 +2632,7 @@ class SkyVaultJS {
 
       let needFix = false;
 
+      console.log("ra="+ra+" rf="+rf+ " re="+re)
       let rresult = this._gradeCoin(ra, rf, re);
 
       if (rresult == this.__frackedResult) {
@@ -3534,9 +3541,13 @@ class SkyVaultJS {
   }
 
   _parseMainPromise(response, arrayLength, rv, callback) {
+    console.log("parsing " + arrayLength)
+    console.log(response)
     for (let i = 0; i < response.length; i++) {
       let serverResponse
 
+      console.log("rrr"+i)
+      console.log(response[i])
       if (response[i].status != 'fulfilled' || response[i].value == undefined) {
         this._addDetails(rv)
         callback("network", i)
@@ -3546,6 +3557,7 @@ class SkyVaultJS {
       //     serverResponse = response[i].value.data
       serverResponse = response[i].value
 
+      console.log(serverResponse)
       //console.log('response from server ', dView.getUint8(0));
       //console.log("status code ", dView.getUint8(2))
       if (arrayLength == 0) {
@@ -3611,6 +3623,10 @@ class SkyVaultJS {
         let restime = Date.now() - st;
         if (restime > thiz.highestrestime)
           thiz.highestrestime = restime;
+
+        console.log("received r"+i)
+        console.log(e)
+
         res(e);
       };
 
@@ -3654,6 +3670,9 @@ class SkyVaultJS {
 
       (function (ridx) {
         let pm = thiz._wsConnect(rparams[ridx], ridx, st).then(response => {
+          console.log("received resposs " + ridx)
+          console.log(response)
+          console.log(response.data)
           if (callback != null) {
             callback(ridx, url, data)
           }
