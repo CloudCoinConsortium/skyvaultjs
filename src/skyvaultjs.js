@@ -1981,6 +1981,7 @@ class SkyVaultJS {
 
     if (!('guid' in params)) {
       guid = this._generatePan()
+      params.guid = guid
     } else {
       guid = params.guid
       if (!this._validateGuid(guid))
@@ -2558,7 +2559,7 @@ class SkyVaultJS {
     await this.waitForSockets()
     let rqs = this._launchRequests("show_transfer_balance", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
-        if (!this._activeServers.includes(rIdx)) {
+        if (!(rIdx in this._activeServers)) {
           rv.raidaStatuses[rIdx] = "u";
           rv.balancesPerRaida[rIdx] = null;
 
@@ -2642,7 +2643,7 @@ class SkyVaultJS {
       }
 
       let a = max;
-      let f = this._activeServers.length - a;
+      let f = Object.keys(this._activeServers).length - a;
 
       let result = this._gradeCoin(a, f, 0);
 
@@ -3011,7 +3012,7 @@ class SkyVaultJS {
       }
       for (let sn in rv.coins) {
         let a = rv.coins[sn].passed
-        let f = this._activeServers.length - a
+        let f = Object.keys(this._activeServers).length - a
         let result = this._gradeCoin(a, f, 0)
         if (this._validResult(result)) {
           nrv.coins[sn] = {
@@ -3784,6 +3785,7 @@ class SkyVaultJS {
           socket.onopen = () => {
             console.log("initializing raida", i, ", milliseconds:", Date.now() - st);
             thiz._webSockets[i] = socket;
+            thiz._activeServers[i] = true
             resolve()
           }
 

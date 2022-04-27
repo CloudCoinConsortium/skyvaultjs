@@ -117,5 +117,5 @@
     "webprod": "webpack --mode=production --env production=prod --env web=web",
     "serve": "npx webpack serve"
   },
-  "version": "1.55.0"
+  "version": "1.58.0"
 }
