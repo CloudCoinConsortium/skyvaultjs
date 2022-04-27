@@ -1924,7 +1924,7 @@ class SkyVaultJS {
       let rAx = axios.create()
       let mParams = {
         'amount': params.amount + "",
-        'merchant_skywallet': merchant_address,
+        'merchant_address': merchant_address,
         'sender_address': sender_address,
         'guid': guid
       }
