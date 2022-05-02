@@ -1814,7 +1814,7 @@ class SkyVaultJS {
         d.setUint8(93 + coinsToReceive.length * 3, times.getUTCMinutes())//minute
         d.setUint8(94 + coinsToReceive.length * 3, times.getUTCSeconds())//second
 
-        d.setUint8(95 + coinsToReceive.length * 3, 1);
+        d.setUint8(95 + coinsToReceive.length * 3, 0);
         rqdata.push(ab)
       } // Launch Requests
 
@@ -2030,6 +2030,164 @@ class SkyVaultJS {
     return response
   }
 
+
+    // NFT TEST CREATE
+    async apiNFTTestCreate(params, callback = null) {
+      if (!'coins' in params) {
+        return this._getError("Invalid input data. No coins");
+      }
+
+      if (!Array.isArray(params['coins'])) {
+        return this._getError("Invalid input data. Coins must be an array");
+      }
+
+      if (params['coins'].length > 13) {
+        return this._getError("Invalid input data. can only create 13 coins. add additional coins with 'Add Coins' service");
+      }
+
+      if (!'guid' in params) {
+        return this._getError("Invalid input data. GUID is not defined");
+      }
+      if (!'meta' in params) {
+        return this._getError("Invalid input data. meta is not defined");
+      }
+      if (!'data' in params) {
+        return this._getError("Invalid input data. data is not defined");
+      }
+
+      let rqdata = []
+      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      let chcrc32 = this._crc32(challange, 0, 12)
+
+      let data = params.data;
+      let meta = params.meta;
+
+      let datalength = data.length;
+      let metalength = meta.length;
+
+      let guid = params.guid;
+      let coins = params['coins'];
+
+      let response
+        // Assemble input data for each Raida Server
+        let ab, d;
+        for (let i = 0; i < this._totalServers; i++) {
+
+          ab = new ArrayBuffer(62 + (19 * coins.length) + datalength + metalength);
+          d = new DataView(ab); //
+
+          d.setUint8(ab.byteLength - 1, 0x3e);
+          d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+          d.setUint8(2, i); //raida id
+          d.setUint8(5, 200); //command test create
+          d.setUint8(8, 0x02); //coin id
+          d.setUint8(12, 0xAB); // echo
+          d.setUint8(13, 0xAB); // echo
+          d.setUint8(15, 0x01)//udp number; //udp number
+          //body
+          for (let x = 0; x < 12; x++) {
+            d.setUint8(22 + x, challange[x])
+          }
+          d.setUint32(34, chcrc32)
+
+          for (let x = 0; x < 16; x++) {
+            d.setUint8(38 + x, parseInt(guid.substr(x * 2, 2), 16));
+          }
+
+          for (let j = 0; j < coins.length; j++) {
+            let coin = coins[j];
+
+            if (!this._validateCoin(coin)) {
+              return this._getError("Invalid coin. Idx " + j);
+            }
+            d.setUint32(54 + j * 19, coin.sn << 8);
+
+            for (let x = 0; x < 16; x++) {
+              d.setUint8(54 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+            }
+          }
+
+          d.setUint8(54 + 19 * coins.length, 0xAB)
+          d.setUint8(55 + 19 * coins.length, 0xCD)
+          d.setUint8(56 + 19 * coins.length, 0xEF)
+
+          for (let m = 0; m < metalength; m++) {
+            d.setUint8(57 + m, parseInt(meta.substr(m * 2, 2), 16));
+          }
+
+          d.setUint8(57 + 19 * coins.length + metalength, 0xAB)
+          d.setUint8(58 + 19 * coins.length + metalength, 0xCD)
+          d.setUint8(59 + 19 * coins.length + metalength, 0xEF)
+
+          for (let d = 0; d < datalength; d++) {
+            d.setUint8(60 + d, parseInt(meta.substr(d * 2, 2), 16));
+          }
+
+          rqdata.push(ab)
+        } // Launch Requests
+
+        // Launch Requests
+        await this.waitForSockets()
+        let rqs = this._launchRequests("test create", rqdata, callback)
+
+        let rv = {
+          status: 'done',
+          code: SkyVaultJS.ERR_NO_ERROR,
+          errors: []
+        }
+        let e = 0;
+        let mainPromise = rqs.then(response => {
+          this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
+            if (serverResponse === "error" || serverResponse == "network") {
+              rv.errors[i] = "no response"
+              e++;
+            } else {
+              let dView = new DataView(serverResponse)
+              let status = dView.getUint8(2)
+
+              if (status == 51) {
+                rv.errors[i] = "coins already have nfts";
+                e++;
+              }
+              if (status == 52) {
+                rv.errors[i] = "no data or meta data";
+                e++;
+              }
+              if (status == 53) {
+                rv.errors[i] = "too much data for coins submitted";
+                e++;
+              }
+              if (status == 54) {
+                rv.errors[i] = "guid is not unique";
+                e++;
+              }
+              if (status == 55) {
+                rv.errors[i] = "coins are counterfeit";
+                e++;
+              }
+              if (status == 250 || status == 50)
+              {
+                //a++;
+              }
+              else {
+                rv.errors[i] = "raida error code " + status;
+                e++;
+              }
+            }
+          })
+
+          if(e > 13)
+          {
+            rv.status = "error";
+            rv.code = SkyVaultJS.ERR_HAS_ERROR;
+          }
+
+          return rv
+        })
+
+        return mainPromise
+    }
+
   _getRandomInt(max) {
     return Math.floor(Math.random() * Math.floor(max));
   }
@@ -2205,7 +2363,7 @@ class SkyVaultJS {
       d.setUint8(80 + coinsToSend.length * 3, times.getUTCMinutes())//minute
       d.setUint8(81 + coinsToSend.length * 3, times.getUTCSeconds())//second
 
-      d.setUint8(82 + coinsToSend.length * 3, 3);//ty
+      d.setUint8(82 + coinsToSend.length * 3, 0);//ty
 
 
       for (let x = 0; x < tags[i].length; x++) {
@@ -3294,7 +3452,7 @@ class SkyVaultJS {
                     }
                     return
                   }
-        
+
                   for (let x = 0; x < vals.length; x++) {
                     let vs = vals[x]
                     let sn = coins[x].sn
@@ -3310,8 +3468,8 @@ class SkyVaultJS {
                       rcoins[sn].pownstring += "e"
                     }
                   }
-        
-        
+
+
                   //for (let i = 0; i < coins.length; i++) {
                   //  let sn = coins[i].sn
                   //  rcoins[sn].counterfeit = this._totalServers
@@ -3694,10 +3852,10 @@ class SkyVaultJS {
             .then(response => {
             console.log("all promises settled")
             console.log(response)
-    
+
             res(response)
           })
-          
+
                 Promise.race(pms).then(r => {
                   setTimeout(() => {res()}, this.options.nexttimeout);
                 })//next reply timeout
@@ -3708,7 +3866,7 @@ class SkyVaultJS {
           //     this.options.nexttimeout = this.highestrestime + 1000;
           return allSettled(response2);
         });
-    
+
         return tm;
         */
   }
@@ -3799,7 +3957,7 @@ class SkyVaultJS {
         }
 
 
-        // Closure. Required to close 'i' 
+        // Closure. Required to close 'i'
         (function (i) {
           socket.onopen = () => {
             console.log("initializing raida", i, ", milliseconds:", Date.now() - st);
