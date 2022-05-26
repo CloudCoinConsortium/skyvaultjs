@@ -21,6 +21,7 @@ class SkyVaultJS {
       prefix: "raida",
       protocol: "https",
       wsprotocol: "wss",
+      forcetcprequest: false,
       timeout: 20000, // ms
       nexttimeout: 5000,
       defaultCoinNn: 1,
@@ -107,7 +108,8 @@ class SkyVaultJS {
     d.setUint8(8, 0x01)//coin id
     d.setUint8(12, 0xAB)// echo
     d.setUint8(13, 0xAB)// echo
-    d.setUint8(15, 0x01)//udp number//udp number
+    if(this.options.forcetcprequest) d.setUint16(14, 0x02)//tcp body size
+    else d.setUint16(14, 0x01)//udp packetnumber
     d.setUint8(22, 0x3e)
     d.setUint8(23, 0x3e) // Trailing chars
 
@@ -194,7 +196,9 @@ class SkyVaultJS {
       d.setUint8(8, 0x01)//coin id
       d.setUint8(12, 0xAB)// echo
       d.setUint8(13, 0xAB)// echo
-      d.setUint8(15, 0x01)//udp number//udp number
+      if(this.options.forcetcprequest || 18+ 35*coins.length > 1440) d.setUint16(14, 18+ 35*coins.length)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
       d.setUint8(22, 0x3e)
       d.setUint8(23, 0x3e) // Trailing chars
       for (let x = 0; x < 12; x++) {
@@ -358,7 +362,9 @@ class SkyVaultJS {
 
       d.setUint8(13, 0xAB); // echo
 
-      d.setUint8(15, 0x01); //udp number
+      if(this.options.forcetcprequest) d.setUint16(14, 37)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
       //body
 
       for (let x = 0; x < 12; x++) {
@@ -455,7 +461,9 @@ class SkyVaultJS {
       d.setUint8(8, 0x00); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      d.setUint8(15, 0x01);//udp number
+      if(this.options.forcetcprequest) d.setUint16(14, 58)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
       //body
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
@@ -1561,9 +1569,10 @@ class SkyVaultJS {
       amountNotes++;
     }
 
-    let packetscoins = [];
-    let packets = [];
+    //let packetscoins = [];
+    //let packets = [];
 
+/*
     let eoc = false;
     let c = 0;
     while (eoc == false) {
@@ -1578,7 +1587,7 @@ class SkyVaultJS {
       }
       packetscoins.push(pack);
     }
-
+*/
     let memo = 'memo' in params ? params['memo'] : "Send";
     let from = "SkyVaultJS";
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -1590,22 +1599,22 @@ class SkyVaultJS {
 
 
     let ab, d;
-    for (let u = 0; u < packetscoins.length; u++) {
+    //for (let u = 0; u < packetscoins.length; u++) {
       let rqdata = [];
-      let packetsize = 93;
-      if (u == 0) packetsize += 22;
-      packetsize += 19 * packetscoins[u].length;
-      if (u + 1 == packetscoins.length) packetsize += 2;
+      let packetsize = 95;
+      packetsize += 22; //header size
+      packetsize += 19 * amountNotes;
+      //if (u + 1 == packetscoins.length) packetsize += 2;
       for (let i = 0; i < this._totalServers; i++) {
         ab = new ArrayBuffer(packetsize);
         d = new DataView(ab); //rqdata.push(ab)
-        if (u + 1 == packetscoins.length) {
+        //if (u + 1 == packetscoins.length) {
           d.setUint8(ab.byteLength - 1, 0x3e);
           d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-        }
+        //}
 
         //header in first packet
-        if (u == 0) {
+        //if (u == 0) {
           d.setUint8(2, i); //raida id
 
           d.setUint8(5, 100); //command deposit
@@ -1616,7 +1625,8 @@ class SkyVaultJS {
 
           d.setUint8(13, 0xAB); // echo
 
-          d.setUint8(15, packetscoins.length); //udp number
+          if(this.options.forcetcprequest || packetsize-22 > 1440) d.setUint16(14, packetsize-22)//tcp body size
+          else d.setUint16(14, 0x01)//udp packetnumber
 
 
           for (let x = 0; x < 12; x++) {
@@ -1624,8 +1634,8 @@ class SkyVaultJS {
           }
 
           d.setUint32(34, chcrc32); //body
-          for (let j = 0; j < packetscoins[u].length; j++) {
-            let coin = packetscoins[u][j];
+          for (let j = 0; j < params['coins'].length; j++) {
+            let coin = params['coins'][j];
 
             if ('an' in coin) {
               for (let x = 0; x < coin.an.length; x++) {
@@ -1662,7 +1672,7 @@ class SkyVaultJS {
 
           d.setUint8(62 + amountNotes * 19, times.getUTCSeconds()); //second
 
-        } else {
+        /*} else {
 
           for (let x = 0; x < 12; x++) {
             d.setUint8(x, challange[x]);
@@ -1706,17 +1716,17 @@ class SkyVaultJS {
           d.setUint8(39 + amountNotes * 19, times.getUTCMinutes()); //minute
 
           d.setUint8(40 + amountNotes * 19, times.getUTCSeconds()); //second
-        }
+        }*/
 
         rqdata.push(ab);
       }
-      packets.push(rqdata);
-    }
+      //packets.push(rqdata);
+    //}
     await this.waitForSockets();
     // Launch Requests
     let rqs;
-    for (let q in packets)
-      rqs = this._launchRequests("send", packets[q], callback);
+    //for (let q in packets)
+      rqs = this._launchRequests("send", rqdata, callback);
 
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       result.transaction_id = guid;
@@ -1785,7 +1795,9 @@ class SkyVaultJS {
         d.setUint8(8, 0x01); //coin id
         d.setUint8(12, 0xAB); // echo
         d.setUint8(13, 0xAB); // echo
-        d.setUint8(15, 0x01)//udp number; //udp number
+        if(this.options.forcetcprequest || 126 + 3 * coinsToReceive.length > 1440) d.setUint16(14, 126 + 3 * coinsToReceive.length)//tcp body size
+        else d.setUint16(14, 0x01)//udp packetnumber
+
         //body
         for (let x = 0; x < 12; x++) {
           d.setUint8(22 + x, challange[x])
@@ -2083,7 +2095,9 @@ class SkyVaultJS {
           d.setUint8(8, 0x02); //coin id
           d.setUint8(12, 0xAB); // echo
           d.setUint8(13, 0xAB); // echo
-          d.setUint8(15, 0x01)//udp number; //udp number
+          if(this.options.forcetcprequest || 40 + (19 * coins.length) + datalength + metalength  > 1440) d.setUint16(14, 40 + (19 * coins.length) + datalength + metalength)//tcp body size
+          else d.setUint16(14, 0x01)//udp packetnumber
+
           //body
           for (let x = 0; x < 12; x++) {
             d.setUint8(22 + x, challange[x])
@@ -2218,7 +2232,9 @@ class SkyVaultJS {
       d.setUint8(8, 0x01); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      d.setUint8(15, 0x01); //udp number
+      if(this.options.forcetcprequest ||37 + 3*sns.length  > 1440) d.setUint16(14, 37 + 3*sns.length)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
       //body
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
@@ -2338,7 +2354,9 @@ class SkyVaultJS {
       d.setUint8(8, 0x01); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      d.setUint8(15, 0x01)//udp number; //udp number
+      if(this.options.forcetcprequest ||113 + (3 * coinsToSend.length)  > 1440) d.setUint16(14, 113 + (3 * coinsToSend.length))//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
       }
@@ -2491,8 +2509,9 @@ class SkyVaultJS {
       d.setUint8(12, 0xAB); // echo
 
       d.setUint8(13, 0xAB); // echo
+      if(this.options.forcetcprequest ||bufferlength - 22 > 1440) d.setUint16(14, bufferlength - 22)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
 
-      d.setUint8(15, 0x01); //udp number;//udp number
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
       }
@@ -2685,7 +2704,10 @@ class SkyVaultJS {
       d.setUint8(8, 0x00);//coin id
       d.setUint8(12, 0xAB);// echo
       d.setUint8(13, 0xAB);// echo
-      d.setUint8(15, 0x01)//udp number;//udp number
+      if(this.options.forcetcprequest ) d.setUint16(14, 37)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
+
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
       }
@@ -3085,7 +3107,9 @@ class SkyVaultJS {
       d.setUint8(8, 0x01);//coin id
       d.setUint8(12, 0xAB);// echo
       d.setUint8(13, 0xAB);// echo
-      d.setUint8(15, 0x01)//udp number;//udp number
+      if(this.options.forcetcprequest ) d.setUint16(14, 39)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
       d.setUint8(ab.byteLength - 3, 1)//biggest returned denomination
       d.setUint32(38, coin.sn << 8)
       for (let x = 0; x < 12; x++) {
@@ -3206,7 +3230,7 @@ class SkyVaultJS {
 
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
-    let ab = new ArrayBuffer(24 + 16 + 4 * 25 + 19 * coins.length);
+    let ab = new ArrayBuffer(24 + 116 + 19 * coins.length);
     let d = new DataView(ab);
     d.setUint8(ab.byteLength - 1, 0x3e);
     d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
@@ -3225,7 +3249,9 @@ class SkyVaultJS {
 
     d.setUint8(13, 0xAB); // echo
 
-    d.setUint8(15, 0x01); //udp number;//udp number
+    if(this.options.forcetcprequest ||118 + 19 * coins.length > 1440) d.setUint16(14, 118 + 19 * coins.length)//tcp body size
+    else d.setUint16(14, 0x01)//udp packetnumber
+
 
     for (let x = 0; x < 12; x++) {
       d.setUint8(22 + x, challange[x])
@@ -3329,7 +3355,10 @@ class SkyVaultJS {
         }
         d.setUint8(12, 0xAB)// echo
         d.setUint8(13, 0xAB)// echo
-        d.setUint8(15, 0x01)//udp number//udp number
+        if(this.options.forcetcprequest ||18 + (bodylength * amount) > 1440) d.setUint16(14, 18 + (bodylength * amount))//tcp body size
+        else d.setUint16(14, 0x01)//udp packetnumber
+
+
 
         //body
         d.setUint32(38 + (j * bodylength), coin.sn << 8)//rqdata[i].sns.push(coin.sn)
