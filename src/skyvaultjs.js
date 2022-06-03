@@ -1569,25 +1569,6 @@ class SkyVaultJS {
       amountNotes++;
     }
 
-    //let packetscoins = [];
-    //let packets = [];
-
-/*
-    let eoc = false;
-    let c = 0;
-    while (eoc == false) {
-      let pack = [];
-      for (let p = 0; p < 40; p++) {
-        pack.push(params.coins[c]);
-        c++;
-        if (c >= amountNotes) {
-          eoc = true;
-          break;
-        }
-      }
-      packetscoins.push(pack);
-    }
-*/
     let memo = 'memo' in params ? params['memo'] : "Send";
     let from = "SkyVaultJS";
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -1599,22 +1580,18 @@ class SkyVaultJS {
 
 
     let ab, d;
-    //for (let u = 0; u < packetscoins.length; u++) {
       let rqdata = [];
       let packetsize = 95;
       packetsize += 22; //header size
       packetsize += 19 * amountNotes;
-      //if (u + 1 == packetscoins.length) packetsize += 2;
+
       for (let i = 0; i < this._totalServers; i++) {
         ab = new ArrayBuffer(packetsize);
         d = new DataView(ab); //rqdata.push(ab)
-        //if (u + 1 == packetscoins.length) {
+
           d.setUint8(ab.byteLength - 1, 0x3e);
           d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-        //}
 
-        //header in first packet
-        //if (u == 0) {
           d.setUint8(2, i); //raida id
 
           d.setUint8(5, 100); //command deposit
@@ -1625,7 +1602,7 @@ class SkyVaultJS {
 
           d.setUint8(13, 0xAB); // echo
 
-          if(this.options.forcetcprequest || packetsize-22 > 1440) d.setUint16(14, packetsize-22)//tcp body size
+          if(this.options.forcetcprequest || packetsize-22 > 1400) d.setUint16(14, packetsize-22)//tcp body size
           else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -1672,60 +1649,13 @@ class SkyVaultJS {
 
           d.setUint8(62 + amountNotes * 19, times.getUTCSeconds()); //second
 
-        /*} else {
-
-          for (let x = 0; x < 12; x++) {
-            d.setUint8(x, challange[x]);
-          }
-
-          d.setUint32(12, chcrc32); //body
-          for (let j = 0; j < packetscoins[u].length; j++) {
-            let coin = packetscoins[u][j];
-
-            if ('an' in coin) {
-              for (let x = 0; x < coin.an.length; x++) {
-                if (coin.an[x] == null) coin.an[x] = this._generatePan();
-              }
-            }
-
-            if (!this._validateCoin(coin)) {
-              return this._getError("Invalid coin. Idx " + j);
-            }
-            d.setUint32(16 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
-
-            for (let x = 0; x < 16; x++) {
-              d.setUint8(16 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
-            }
-          }
-
-          d.setUint32(16 + amountNotes * 19, to << 8); //owner
-
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(19 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
-          } //transaction guid
-
-
-          d.setUint8(35 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
-
-          d.setUint8(36 + amountNotes * 19, times.getUTCMonth() + 1); //month
-
-          d.setUint8(37 + amountNotes * 19, times.getUTCDate()); //day
-
-          d.setUint8(38 + amountNotes * 19, times.getUTCHours()); //hour
-
-          d.setUint8(39 + amountNotes * 19, times.getUTCMinutes()); //minute
-
-          d.setUint8(40 + amountNotes * 19, times.getUTCSeconds()); //second
-        }*/
-
         rqdata.push(ab);
       }
-      //packets.push(rqdata);
-    //}
+
     await this.waitForSockets();
-    // Launch Requests
+
     let rqs;
-    //for (let q in packets)
+
       rqs = this._launchRequests("send", rqdata, callback);
 
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
@@ -1736,7 +1666,7 @@ class SkyVaultJS {
     });
 
     let pm = new Promise((resolve, reject) => {
-      setTimeout(() => {//this._fixTransfer()
+      setTimeout(() => {this.apiFixTransferSync()
       }, 500);
     });
     return rv;
@@ -3937,7 +3867,7 @@ class SkyVaultJS {
       this._raidaServers[20] = this.options.wsprotocol + "://ebc40-bhta2-92e-10440.skyvault.cc:8888";
       this._raidaServers[21] = this.options.wsprotocol + "://ebc42-nkla2-92e-10442.skyvault.cc:8888";
       this._raidaServers[22] = this.options.wsprotocol + "://cbe88-3i0a2-63e-21233.skyvault.cc:8888";
-      this._raidaServers[23] = this.options.wsprotocol + "://7cbdbe-2arbf-e29-64401.skyvault.cc:8888";
+      this._raidaServers[23] = this.options.wsprotocol + "://8c9dhe-6au3f-e19-78433.skyvault.cc:8888";
       this._raidaServers[24] = this.options.wsprotocol + "://ebc48-adea2-92e-10448.skyvault.cc:8888";
     }
     else {
