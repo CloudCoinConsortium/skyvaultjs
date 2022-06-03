@@ -173,6 +173,9 @@ class SkyVaultJS {
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
     }
 
+    let tcpmode = false
+    if(coins.length >= 40) tcpmode = true
+
 
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
@@ -196,7 +199,7 @@ class SkyVaultJS {
       d.setUint8(8, 0x01)//coin id
       d.setUint8(12, 0xAB)// echo
       d.setUint8(13, 0xAB)// echo
-      if(this.options.forcetcprequest || 18+ 35*coins.length > 1440) d.setUint16(14, 18+ 35*coins.length)//tcp body size
+      if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 18+ 35*coins.length)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       d.setUint8(22, 0x3e)
@@ -219,7 +222,7 @@ class SkyVaultJS {
     }
 
     await this.waitForSockets()
-    let rqs = this._launchRequests("find", rqdata, callback)
+    let rqs = this._launchRequests("find", rqdata, callback, tcpmode)
     let rv = {
       status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -733,7 +736,7 @@ class SkyVaultJS {
     let a, f, e
     a = f = e = 0
     await this.waitForSockets()
-    let rqs = this._launchRequests("statements/create", rqdata, 'GET', callback)
+    let rqs = this._launchRequests("statements/create", rqdata, callback, false)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
         if (serverResponse === "error" || serverResponse == "network") {
@@ -933,7 +936,7 @@ class SkyVaultJS {
       })
     }
     await this.waitForSockets()
-    let rqs = this._launchRequests("view_receipt", rqdata, 'GET', callback)
+    let rqs = this._launchRequests("view_receipt", rqdata, callback, false)
     let rv = {
       status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -1563,11 +1566,15 @@ class SkyVaultJS {
     let amount = 0;
     let amountNotes = 0;
 
+    let tcpmode = false
+
     for (let i in params.coins) {
       let cc = params.coins[i];
       amount++;
       amountNotes++;
     }
+
+    if (amountNotes >=40) tcpmode = true
 
     let memo = 'memo' in params ? params['memo'] : "Send";
     let from = "SkyVaultJS";
@@ -1602,7 +1609,7 @@ class SkyVaultJS {
 
           d.setUint8(13, 0xAB); // echo
 
-          if(this.options.forcetcprequest || packetsize-22 > 1400) d.setUint16(14, packetsize-22)//tcp body size
+          if(this.options.forcetcprequest || tcpmode) d.setUint16(14, packetsize-22)//tcp body size
           else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -1656,7 +1663,7 @@ class SkyVaultJS {
 
     let rqs;
 
-      rqs = this._launchRequests("send", rqdata, callback);
+      rqs = this._launchRequests("send", rqdata, callback, tcpmode);
 
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       result.transaction_id = guid;
@@ -1704,6 +1711,9 @@ class SkyVaultJS {
     let guid = this._generatePan();
     let times = new Date(Date.now())
 
+    let tcpmode = false
+    if(coinsToReceive.length >= 40) tcpmode = true
+
     let response
     if (coinsToReceive.length > 0) {
       // Assemble input data for each Raida Server
@@ -1725,7 +1735,7 @@ class SkyVaultJS {
         d.setUint8(8, 0x01); //coin id
         d.setUint8(12, 0xAB); // echo
         d.setUint8(13, 0xAB); // echo
-        if(this.options.forcetcprequest || 126 + 3 * coinsToReceive.length > 1440) d.setUint16(14, 126 + 3 * coinsToReceive.length)//tcp body size
+        if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 126 + 3 * coinsToReceive.length)//tcp body size
         else d.setUint16(14, 0x01)//udp packetnumber
 
         //body
@@ -1762,7 +1772,7 @@ class SkyVaultJS {
 
       // Launch Requests
       await this.waitForSockets()
-      let rqs = this._launchRequests("receive", rqdata, callback)
+      let rqs = this._launchRequests("receive", rqdata, callback, tcpmode)
 
       let coins = new Array(coinsToReceive.length)
       coinsToReceive.forEach((value, idx) => {
@@ -2010,6 +2020,9 @@ class SkyVaultJS {
       let guid = params.guid;
       let coins = params['coins'];
 
+      let tcpmode = false
+      if(coins.length >= 40) tcpmode = true
+
       let response
         // Assemble input data for each Raida Server
         let ab, d;
@@ -2025,7 +2038,7 @@ class SkyVaultJS {
           d.setUint8(8, 0x02); //coin id
           d.setUint8(12, 0xAB); // echo
           d.setUint8(13, 0xAB); // echo
-          if(this.options.forcetcprequest || 40 + (19 * coins.length) + datalength + metalength  > 1440) d.setUint16(14, 40 + (19 * coins.length) + datalength + metalength)//tcp body size
+          if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 40 + (19 * coins.length) + datalength + metalength)//tcp body size
           else d.setUint16(14, 0x01)//udp packetnumber
 
           //body
@@ -2072,7 +2085,7 @@ class SkyVaultJS {
 
         // Launch Requests
         await this.waitForSockets()
-        let rqs = this._launchRequests("test create", rqdata, callback)
+        let rqs = this._launchRequests("test create", rqdata, callback, tcpmode)
 
         let rv = {
           status: 'done',
@@ -2149,6 +2162,9 @@ class SkyVaultJS {
       return this._getError("incorrect value for MODE. must be either 0 or 2");
     }
 
+    let tcpmode = false
+    if(sns.length >= 120) tcpmode = true
+
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
     let rqdata = [];
@@ -2162,7 +2178,7 @@ class SkyVaultJS {
       d.setUint8(8, 0x01); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      if(this.options.forcetcprequest ||37 + 3*sns.length  > 1440) d.setUint16(14, 37 + 3*sns.length)//tcp body size
+      if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 37 + 3*sns.length)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       //body
@@ -2182,7 +2198,7 @@ class SkyVaultJS {
       rqdata.push(ab)
     }
     await this.waitForSockets()
-    let pm = this._launchRequests("sync/fix_transfer", rqdata, null, servers)
+    let pm = this._launchRequests("sync/fix_transfer", rqdata, null, tcpmode, servers)
 
     let modestring = "add";
     if (mode == 2)
@@ -2268,6 +2284,8 @@ class SkyVaultJS {
 
   // Doing actual transfer
   async _doTransfer(coin, guid, to, tags, coinsToSend, callback) {
+    let tcpmode = false
+    if(coinsToSend >= 120) tcpmode = true
     let times = new Date(Date.now())
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
@@ -2284,7 +2302,7 @@ class SkyVaultJS {
       d.setUint8(8, 0x01); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      if(this.options.forcetcprequest ||113 + (3 * coinsToSend.length)  > 1440) d.setUint16(14, 113 + (3 * coinsToSend.length))//tcp body size
+      if(this.options.forcetcprequest ||tcpmode) d.setUint16(14, 113 + (3 * coinsToSend.length))//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       for (let x = 0; x < 12; x++) {
@@ -2337,7 +2355,7 @@ class SkyVaultJS {
 
     // Launch Requests
     await this.waitForSockets()
-    let rqs = this._launchRequests("transfer", rqdata, callback)
+    let rqs = this._launchRequests("transfer", rqdata, callback, tcpmode)
 
     let coins = new Array(coinsToSend.length)
     coinsToSend.forEach((value, idx) => {
@@ -2588,7 +2606,7 @@ class SkyVaultJS {
     let a, f, e
     a = f = e = 0
     await this.waitForSockets()
-    let rqs = this._launchRequests("recover_by_email", rqdata, 'GET', callback)
+    let rqs = this._launchRequests("recover_by_email", rqdata, callback, false)
     let mainPromise = rqs.then(response => {
       this._parseMainPromise(response, 0, rv, serverResponse => {
         if (serverResponse === "error" || serverResponse == "network") {
@@ -2978,7 +2996,7 @@ class SkyVaultJS {
       balancesPerRaida: []
     }
     await this.waitForSockets()
-    let rqs = this._launchRequests("show", rqdata, 'GET', callback).then(response => {
+    let rqs = this._launchRequests("show", rqdata, callback, false).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         if (response == "network" || response == "error")
           return
@@ -3148,11 +3166,14 @@ class SkyVaultJS {
 
   // Doing internal fix
   async _realFix(round, raidaIdx, coins, callback = null) {
-    let rqdata, triad, rqs, resultData; //for (let corner = 0; corner < 4; corner++) {
+    let rqdata, triad, rqs, resultData;
+
+    let tcpmode = false
+    if(coins.length >= 40) tcpmode = true
 
     rqdata = this._formRequestData(coins, false, 11);
     await this.waitForSockets()
-    rqs = this._launchRequests("multi_get_ticket", rqdata, callback);
+    rqs = this._launchRequests("multi_get_ticket", rqdata, callback, tcpmode);
     resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
       if (a > 12) return this.__authenticResult;
       return this.__counterfeitResult;
@@ -3179,7 +3200,7 @@ class SkyVaultJS {
 
     d.setUint8(13, 0xAB); // echo
 
-    if(this.options.forcetcprequest ||118 + 19 * coins.length > 1440) d.setUint16(14, 118 + 19 * coins.length)//tcp body size
+    if(this.options.forcetcprequest ||tcpmode) d.setUint16(14, 118 + 19 * coins.length)//tcp body size
     else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -3208,7 +3229,7 @@ class SkyVaultJS {
 
     //console.log(d);
     await this.waitForSockets()
-    rqs = this._launchRequests("multi_fix", ab, callback, [raidaIdx]);
+    rqs = this._launchRequests("multi_fix", ab, callback, tcpmode, [raidaIdx]);
     resultData = await this._getGenericMainPromise(rqs, coins, (a, c, e) => {
       if (a == 1 && c == 0 && e == 0) return this.__authenticResult;
       return this.__counterfeitResult;
@@ -3285,7 +3306,7 @@ class SkyVaultJS {
         }
         d.setUint8(12, 0xAB)// echo
         d.setUint8(13, 0xAB)// echo
-        if(this.options.forcetcprequest ||18 + (bodylength * amount) > 1440) d.setUint16(14, 18 + (bodylength * amount))//tcp body size
+        if(this.options.forcetcprequest ||amount >= 40) d.setUint16(14, 18 + (bodylength * amount))//tcp body size
         else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -3715,7 +3736,45 @@ class SkyVaultJS {
     }
   }
 
-  _wsConnect(data, i, st) {
+  _wsConnectTCP(data, i, st) {
+      let thiz = this
+      let reject = true;
+      let dv = new DataView(data);
+      if(this._activeServers.includes(i))
+        reject = false;
+        if(!reject || dv.getUint8(5) == 0x04){
+      return new Promise(function (res, rej) {
+        let socket;
+        if (_isBrowser) socket = new WebSocket(url);else {
+          socket = new _ws(url);
+        }
+        socket.binaryType = "arraybuffer";
+        socket.onopen = e => {
+          console.log("sending ", i, Date.now() - st);
+          dv.setUint8(2, i);
+          socket.send(data);
+        };
+        socket.onmessage = e => {
+          let restime = Date.now() - st;
+          console.log("recieving ", i, restime);
+          if(restime > thiz.highestrestime)
+          thiz.highestrestime = restime;
+          res(e);
+          socket.close(1000);
+        };
+        socket.onerror = e => {
+          console.log("ws error: ", e.message);
+          rej(e);
+          socket.close();
+        };
+      });
+    }else{
+      return new Promise((res, rej)=>{rej()});
+    }
+
+  }
+
+  _wsConnect(data, i, st, tcp = false) {
     let thiz = this
 
     if (this._webSockets[i] == null || data == null) {
@@ -3735,7 +3794,31 @@ class SkyVaultJS {
         v += "" + dv.getUint8(p) + " "
       }
       console.log(v)
-
+      if(tcp){
+        let socket;
+        if (_isBrowser) socket = new WebSocket(thiz._raidaServers[i]+":9999");else {
+          socket = new _ws(thiz._raidaServers[i]+":9999");
+        }
+        socket.binaryType = "arraybuffer";
+        socket.onopen = e => {
+          console.log("sending tcp ", i, Date.now() - st);
+          dv.setUint8(2, i);
+          socket.send(data);
+        };
+        socket.onmessage = e => {
+          let restime = Date.now() - st;
+          console.log("recieving tcp ", i, restime);
+          if(restime > thiz.highestrestime)
+          thiz.highestrestime = restime;
+          res(e);
+          socket.close(1000);
+        };
+        socket.onerror = e => {
+          console.log("tcp ws error: ", e.message);
+          rej(e);
+          socket.close();
+        };
+    } else {
       thiz._webSockets[i].onmessage = e => {
         let restime = Date.now() - st;
         if (restime > thiz.highestrestime)
@@ -3752,10 +3835,11 @@ class SkyVaultJS {
         rej(e);
       };
       thiz._webSockets[i].send(data);
+    }
     });
   }
 
-  _launchRequests(url, params = null, callback = null, servers = null, data = null) {
+  _launchRequests(url, params = null, callback = null, tcpmode = false, servers = null, data = null) {
     if (params == null) params = {};
     let iteratedServersIdxs;
 
@@ -3786,7 +3870,7 @@ class SkyVaultJS {
       let ridx = iteratedServersIdxs[i];
 
       (function (ridx) {
-        let pm = thiz._wsConnect(rparams[ridx], ridx, st).then(response => {
+        let pm = thiz._wsConnect(rparams[ridx], ridx, st, tcpmode).then(response => {
           console.log("received resposs " + ridx)
           console.log(response)
           console.log(response.data)
@@ -3844,58 +3928,58 @@ class SkyVaultJS {
   // Generate the array of RAIDA server URLs
   _generateServers() {
     if (this.options.wsprotocol == "wss") {
-      this._raidaServers[0] = this.options.wsprotocol + "://ebc0-99a2-92e-10420.skyvault.cc:8888";
-      this._raidaServers[1] = this.options.wsprotocol + "://ebc2-4555a2-92e-10422.skyvault.cc:8888";
-      this._raidaServers[2] = this.options.wsprotocol + "://ebc4-9aes2-92e-10424.skyvault.cc:8888";
-      this._raidaServers[3] = this.options.wsprotocol + "://ebc6-13a2-92e-10426.skyvault.cc:8888";
-      this._raidaServers[4] = this.options.wsprotocol + "://ebc8-11a2-92e-10428.skyvault.cc:8888";
-      this._raidaServers[5] = this.options.wsprotocol + "://ebc10-56a2-92e-104210.skyvault.cc:8888";
-      this._raidaServers[6] = this.options.wsprotocol + "://ebc12-88a2-92e-10412.skyvault.cc:8888";
-      this._raidaServers[7] = this.options.wsprotocol + "://ebc14-90a2-92e-10414.skyvault.cc:8888";
-      this._raidaServers[8] = this.options.wsprotocol + "://ebc16-66a2-92e-10416.skyvault.cc:8888";
-      this._raidaServers[9] = this.options.wsprotocol + "://ebc18-231a2-92e-10418.skyvault.cc:8888";
-      this._raidaServers[10] = this.options.wsprotocol + "://ebc20-13489-92e-10420.skyvault.cc:8888";
-      this._raidaServers[11] = this.options.wsprotocol + "://ebc22-kka2-92e-10422.skyvault.cc:8888";
-      this._raidaServers[12] = this.options.wsprotocol + "://ebc24-mnna2-92e-10444.skyvault.cc:8888";
-      this._raidaServers[13] = this.options.wsprotocol + "://ebc26-uuia2-92e-10426.skyvault.cc:8888";
-      this._raidaServers[14] = this.options.wsprotocol + "://ebc28-eera2-92e-10428.skyvault.cc:8888";
-      this._raidaServers[15] = this.options.wsprotocol + "://ebc30-zxda2-92e-10430.skyvault.cc:8888";
-      this._raidaServers[16] = this.options.wsprotocol + "://ebc32-wera2-92e-10432.skyvault.cc:8888";
-      this._raidaServers[17] = this.options.wsprotocol + "://ebc34-34oa2-92e-10434.skyvault.cc:8888";
-      this._raidaServers[18] = this.options.wsprotocol + "://ebc36-mhha2-92e-10436.skyvault.cc:8888";
-      this._raidaServers[19] = this.options.wsprotocol + "://ebc38-qqra2-92e-10438.skyvault.cc:8888";
-      this._raidaServers[20] = this.options.wsprotocol + "://ebc40-bhta2-92e-10440.skyvault.cc:8888";
-      this._raidaServers[21] = this.options.wsprotocol + "://ebc42-nkla2-92e-10442.skyvault.cc:8888";
-      this._raidaServers[22] = this.options.wsprotocol + "://cbe88-3i0a2-63e-21233.skyvault.cc:8888";
-      this._raidaServers[23] = this.options.wsprotocol + "://8c9dhe-6au3f-e19-78433.skyvault.cc:8888";
-      this._raidaServers[24] = this.options.wsprotocol + "://ebc48-adea2-92e-10448.skyvault.cc:8888";
+      this._raidaServers[0] = this.options.wsprotocol + "://ebc0-99a2-92e-10420.skyvault.cc";
+      this._raidaServers[1] = this.options.wsprotocol + "://ebc2-4555a2-92e-10422.skyvault.cc";
+      this._raidaServers[2] = this.options.wsprotocol + "://ebc4-9aes2-92e-10424.skyvault.cc";
+      this._raidaServers[3] = this.options.wsprotocol + "://ebc6-13a2-92e-10426.skyvault.cc";
+      this._raidaServers[4] = this.options.wsprotocol + "://ebc8-11a2-92e-10428.skyvault.cc";
+      this._raidaServers[5] = this.options.wsprotocol + "://ebc10-56a2-92e-104210.skyvault.cc";
+      this._raidaServers[6] = this.options.wsprotocol + "://ebc12-88a2-92e-10412.skyvault.cc";
+      this._raidaServers[7] = this.options.wsprotocol + "://ebc14-90a2-92e-10414.skyvault.cc";
+      this._raidaServers[8] = this.options.wsprotocol + "://ebc16-66a2-92e-10416.skyvault.cc";
+      this._raidaServers[9] = this.options.wsprotocol + "://ebc18-231a2-92e-10418.skyvault.cc";
+      this._raidaServers[10] = this.options.wsprotocol + "://ebc20-13489-92e-10420.skyvault.cc";
+      this._raidaServers[11] = this.options.wsprotocol + "://ebc22-kka2-92e-10422.skyvault.cc";
+      this._raidaServers[12] = this.options.wsprotocol + "://ebc24-mnna2-92e-10444.skyvault.cc";
+      this._raidaServers[13] = this.options.wsprotocol + "://ebc26-uuia2-92e-10426.skyvault.cc";
+      this._raidaServers[14] = this.options.wsprotocol + "://ebc28-eera2-92e-10428.skyvault.cc";
+      this._raidaServers[15] = this.options.wsprotocol + "://ebc30-zxda2-92e-10430.skyvault.cc";
+      this._raidaServers[16] = this.options.wsprotocol + "://ebc32-wera2-92e-10432.skyvault.cc";
+      this._raidaServers[17] = this.options.wsprotocol + "://ebc34-34oa2-92e-10434.skyvault.cc";
+      this._raidaServers[18] = this.options.wsprotocol + "://ebc36-mhha2-92e-10436.skyvault.cc";
+      this._raidaServers[19] = this.options.wsprotocol + "://ebc38-qqra2-92e-10438.skyvault.cc";
+      this._raidaServers[20] = this.options.wsprotocol + "://ebc40-bhta2-92e-10440.skyvault.cc";
+      this._raidaServers[21] = this.options.wsprotocol + "://ebc42-nkla2-92e-10442.skyvault.cc";
+      this._raidaServers[22] = this.options.wsprotocol + "://cbe88-3i0a2-63e-21233.skyvault.cc";
+      this._raidaServers[23] = this.options.wsprotocol + "://8c9dhe-6au3f-e19-78433.skyvault.cc";
+      this._raidaServers[24] = this.options.wsprotocol + "://ebc48-adea2-92e-10448.skyvault.cc";
     }
     else {
-      this._raidaServers[0] = this.options.wsprotocol + "://87.120.8.249:8888";
-      this._raidaServers[1] = this.options.wsprotocol + "://23.106.122.6:8888";
-      this._raidaServers[2] = this.options.wsprotocol + "://172.105.176.86:8888";
-      this._raidaServers[3] = this.options.wsprotocol + "://85.195.82.169:8888";
-      this._raidaServers[4] = this.options.wsprotocol + "://198.244.135.236:8888";
-      this._raidaServers[5] = this.options.wsprotocol + "://88.119.174.101:8888";
-      this._raidaServers[6] = this.options.wsprotocol + "://209.141.52.193:8888";
-      this._raidaServers[7] = this.options.wsprotocol + "://179.43.175.35:8888";
-      this._raidaServers[8] = this.options.wsprotocol + "://104.161.32.116:8888";
-      this._raidaServers[9] = this.options.wsprotocol + "://66.172.11.25:8888";
-      this._raidaServers[10] = this.options.wsprotocol + "://194.29.186.69:8888";
-      this._raidaServers[11] = this.options.wsprotocol + "://168.235.69.182:8888";
-      this._raidaServers[12] = this.options.wsprotocol + "://185.118.164.19:8888";
-      this._raidaServers[13] = this.options.wsprotocol + "://167.88.15.117:8888";
-      this._raidaServers[14] = this.options.wsprotocol + "://23.29.115.137:8888";
-      this._raidaServers[15] = this.options.wsprotocol + "://66.29.143.85:8888";
-      this._raidaServers[16] = this.options.wsprotocol + "://185.99.133.110:8888";
-      this._raidaServers[17] = this.options.wsprotocol + "://104.168.162.230:8888";
-      this._raidaServers[18] = this.options.wsprotocol + "://170.75.170.4:8888";
-      this._raidaServers[19] = this.options.wsprotocol + "://185.215.227.31:8888";
-      this._raidaServers[20] = this.options.wsprotocol + "://51.222.229.205:8888";
-      this._raidaServers[21] = this.options.wsprotocol + "://31.192.107.132:8888";
-      this._raidaServers[22] = this.options.wsprotocol + "://180.235.135.143:8888";
-      this._raidaServers[23] = this.options.wsprotocol + "://80.233.134.148:8888";
-      this._raidaServers[24] = this.options.wsprotocol + "://147.182.249.132:8888";
+      this._raidaServers[0] = this.options.wsprotocol + "://87.120.8.249";
+      this._raidaServers[1] = this.options.wsprotocol + "://23.106.122.6";
+      this._raidaServers[2] = this.options.wsprotocol + "://172.105.176.86";
+      this._raidaServers[3] = this.options.wsprotocol + "://85.195.82.169";
+      this._raidaServers[4] = this.options.wsprotocol + "://198.244.135.236";
+      this._raidaServers[5] = this.options.wsprotocol + "://88.119.174.101";
+      this._raidaServers[6] = this.options.wsprotocol + "://209.141.52.193";
+      this._raidaServers[7] = this.options.wsprotocol + "://179.43.175.35";
+      this._raidaServers[8] = this.options.wsprotocol + "://104.161.32.116";
+      this._raidaServers[9] = this.options.wsprotocol + "://66.172.11.25";
+      this._raidaServers[10] = this.options.wsprotocol + "://194.29.186.69";
+      this._raidaServers[11] = this.options.wsprotocol + "://168.235.69.182";
+      this._raidaServers[12] = this.options.wsprotocol + "://185.118.164.19";
+      this._raidaServers[13] = this.options.wsprotocol + "://167.88.15.117";
+      this._raidaServers[14] = this.options.wsprotocol + "://135.148.11.160";
+      this._raidaServers[15] = this.options.wsprotocol + "://66.29.143.85";
+      this._raidaServers[16] = this.options.wsprotocol + "://185.99.133.110";
+      this._raidaServers[17] = this.options.wsprotocol + "://104.168.162.230";
+      this._raidaServers[18] = this.options.wsprotocol + "://170.75.170.4";
+      this._raidaServers[19] = this.options.wsprotocol + "://185.215.227.31";
+      this._raidaServers[20] = this.options.wsprotocol + "://51.222.229.205";
+      this._raidaServers[21] = this.options.wsprotocol + "://31.192.107.132";
+      this._raidaServers[22] = this.options.wsprotocol + "://180.235.135.143";
+      this._raidaServers[23] = this.options.wsprotocol + "://213.59.119.96";
+      this._raidaServers[24] = this.options.wsprotocol + "://147.182.249.132";
     }
   }
 
@@ -3910,9 +3994,9 @@ class SkyVaultJS {
       pms[i] = new Promise((resolve, reject) => {
         let socket;
         if (_isBrowser)
-          socket = new WebSocket(this._raidaServers[i]);
+          socket = new WebSocket(this._raidaServers[i] + ":8888");
         else {
-          socket = new _ws(this._raidaServers[i]);
+          socket = new _ws(this._raidaServers[i] + ":8888");
         }
 
 
@@ -4624,7 +4708,7 @@ class SkyVaultJS {
       }
 
       // Don't need to wait for result
-      this._launchRequests(fcall, lrqdata, 'GET', () => {}, servers)
+      this._launchRequests(fcall, lrqdata, 'GET', () => {}, false, servers)
     }
   }
 
@@ -4672,7 +4756,7 @@ class SkyVaultJS {
       }
 
       // Don't need to wait for result
-      this._launchRequests(fcall, lrqdata, 'GET', () => {}, servers)
+      this._launchRequests(fcall, lrqdata, () => {}, false, servers)
     }
   }
 }
