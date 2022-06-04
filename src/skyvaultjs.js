@@ -31,7 +31,7 @@ class SkyVaultJS {
       defaultRaidaForBackupQuery: 14,
       ddnsServer: "ddns.cloudcoin.global",
       // max coins to transfer at a time
-      maxCoins: 20000,
+      maxCoins: 16000,
       maxCoinsPerIteraiton: 200,
       minPasswordLength: 8,
       memoMetadataSeparator: "*",
@@ -1684,21 +1684,44 @@ class SkyVaultJS {
     let coin = this._getCoinFromParams(params)
     if (coin == null)
       return this._getError("Failed to parse coin from params")
-
-    let gcRqs = await this._getCoins(coin, callback)
+    if (!('amount' in params)) {
+      return this._getError("Invalid input data. Amount is required");
+    }
+let needsync = false
+let sns = []
+let page = 0
+let gcRqs
+while(params.amount > sns.length){
+    gcRqs = await this._getCoins(coin, page, callback)
     if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
       return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+    if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
+        console.log("attempted to withdraw: ", params.amount)
+        return this._getError("Not enough coins, you don't have at least: ", 1 + (page - 1) * 150);
+      }
 
-    let sns = Object.keys(gcRqs.coins)
+//remove desynced coins
+      for (let sn in gcRqs.coinsPerRaida) {
+        let yescount = 0;
+        gcRqs.coinsPerRaida[sn].forEach((e, i) => {
+           if (e == 'yes') {
+            yescount++
+          }
+        })
+        if(sns.includes(sn)){
+          delete gcRqs.coins[sn]
+        }
+        else if (yescount < 20) {
+          needsync = true
+          delete gcRqs.coins[sn]
+        }
+      }
 
-    if (!('amount' in params)) {
-      params.amount = this._calcAmount(sns)
-    }
+    sns = sns.concat(Object.keys(gcRqs.coins))
+    page++
+}
 
-    if (params.amount > this._calcAmount(sns)) {
-      console.log("attempted to withdraw: ", params.amount)
-      return this._getError("Not enough coins, you don't have at least: ", this._calcAmount(sns));
-    }
+
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
     let coinsToReceive = rvalues.coins
@@ -1801,6 +1824,13 @@ class SkyVaultJS {
       }
 
       return response
+    }
+
+    if(needsync){
+      let pm = new Promise((resolve, reject) => {
+        setTimeout(() => {this.apiFixTransferSync()
+        }, 500);
+      });
     }
 
   }
@@ -1949,16 +1979,38 @@ class SkyVaultJS {
     console.log(params)
     console.log(params.guid)
     let tags = this._getObjectMemo(memo, from)
+    let needsync = false
+    let sns = []
+    let page = 0
+    let gcRqs
+    while(params.amount > sns.length){
+        gcRqs = await this._getCoins(coin, page, callback)
+        if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
+          return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+        if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
+            console.log("attempted to transfer: ", params.amount)
+            return this._getError("Not enough coins, you don't have at least: ", 1 + (page - 1) * 150);
+          }
 
-    let gcRqs = await this._getCoins(coin, callback)
-    if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+    //remove desynced coins
+          for (let sn in gcRqs.coinsPerRaida) {
+            let yescount = 0;
+            gcRqs.coinsPerRaida[sn].forEach((e, i) => {
+               if (e == 'yes') {
+                yescount++
+              }
+            })
+            if(sns.includes(sn)){
+              delete gcRqs.coins[sn]
+            }
+            else if (yescount < 20) {
+              needsync = true
+              delete gcRqs.coins[sn]
+            }
+          }
 
-    let sns = Object.keys(gcRqs.coins)
-    let nns = new Array(sns.length)
-    nns.fill(this.options.defaultCoinNn)
-    if (params.amount > this._calcAmount(sns)) {
-      return this._getError("Not enough cloudcoins")
+        sns = sns.concat(Object.keys(gcRqs.coins))
+        page++
     }
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
@@ -1972,13 +2024,13 @@ class SkyVaultJS {
     // Assemble input data for each Raida Server
     //response.changeCoinSent = changeRequired
     response.code = SkyVaultJS.ERR_NO_ERROR
-
+if(needsync){
     let pm = new Promise((resolve, reject) => {
       setTimeout(() => {
-        //this._fixTransfer()
+        this.apiFixTransferSync()
       }, 500)
     })
-
+}
     return response
   }
 
@@ -2801,7 +2853,10 @@ class SkyVaultJS {
 
       return rv;
     });
-
+    let pm = new Promise((resolve, reject) => {
+      setTimeout(() => {this.apiFixTransferSync()
+      }, 500);
+    });
     return rqs;
   }
 
@@ -3051,7 +3106,7 @@ class SkyVaultJS {
       d.setUint8(ab.byteLength - 1, 0x3e);
       d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
       d.setUint8(2, i) //raida id
-      d.setUint8(5, 114);//show register
+      d.setUint8(5, 114);//show coins by denomination
       d.setUint8(8, 0x01);//coin id
       d.setUint8(12, 0xAB);// echo
       d.setUint8(13, 0xAB);// echo
@@ -3078,8 +3133,8 @@ class SkyVaultJS {
     }
 
     let skipRaidas = []
-    let a, f, e
-    a = f = e = 0
+    let a, f, e, p
+    a = f = e = p = 0
     await this.waitForSockets()
     let rqs = this._launchRequests("show", rqdata, callback).then(response => {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
@@ -3099,6 +3154,14 @@ class SkyVaultJS {
         if (status == 251) {
           skipRaidas.push(rIdx)
           f++
+          return
+        }
+
+        if(status == 66) {
+          console.log("page error")
+          skipRaidas.push(rIdx)
+          p++
+          e++
           return
         }
 
@@ -3134,6 +3197,9 @@ class SkyVaultJS {
 
       // Fail only if counterfeit. Other errors are fine
       let result = this._gradeCoin(a, f, e)
+      if(p > 20)
+        return this._getErrorCode(SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS, "no coins in wallet on ths page")
+
       if (result == this.__counterfeitResult)
         return this._getErrorCode(SkyVaultJS.ERR_COUNTERFEIT_COIN, "Counterfeit coins")
       //if (!this._validResult(result))
