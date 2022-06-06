@@ -32,6 +32,7 @@ class SkyVaultJS {
       ddnsServer: "ddns.cloudcoin.global",
       // max coins to transfer at a time
       maxCoins: 16000,
+      maxSendCoins: 3200,
       maxCoinsPerIteraiton: 200,
       minPasswordLength: 8,
       memoMetadataSeparator: "*",
@@ -172,7 +173,9 @@ class SkyVaultJS {
     if (coins.length < 1) {
       return this._getErrorCode(SkyVaultJS.ERR_PARAM_INVALID_COIN, "Failed to validate coin")
     }
-
+    if (coins.length > this.options.maxSendCoins) {
+      return this._getError("You can't find more than " + this.options.maxSendCoins + " coins at a time")
+    }
     let tcpmode = false
     if(coins.length >= 40) tcpmode = true
 
@@ -1573,7 +1576,9 @@ class SkyVaultJS {
       amount++;
       amountNotes++;
     }
-
+    if (amount > this.options.maxSendCoins) {
+      return this._getError("You can't deposit more than " + this.options.maxSendCoins + " coins at a time")
+    }
     if (amountNotes >=40) tcpmode = true
 
     let memo = 'memo' in params ? params['memo'] : "Send";
@@ -1733,7 +1738,9 @@ while(params.amount > sns.length){
     nns.fill(this.options.defaultCoinNn)
     let guid = this._generatePan();
     let times = new Date(Date.now())
-
+    if (coinsToReceive.length > this.options.maxCoins) {
+      return this._getError("You can't withdraw more than " + this.options.maxCoins + " coins at a time")
+    }
     let tcpmode = false
     if(coinsToReceive.length >= 40) tcpmode = true
 
@@ -2071,7 +2078,9 @@ if(needsync){
 
       let guid = params.guid;
       let coins = params['coins'];
-
+      if (coins.length > this.options.maxSendCoins) {
+        return this._getError("You can't deposit more than " + this.options.maxSendCoins + " coins at a time")
+      }
       let tcpmode = false
       if(coins.length >= 40) tcpmode = true
 
@@ -2212,6 +2221,9 @@ if(needsync){
 
     if (mode != 0 && mode != 2) {
       return this._getError("incorrect value for MODE. must be either 0 or 2");
+    }
+    if (sns.length > this.options.maxCoins) {
+      return this._getError("You can't sync more than " + this.options.maxCoins + " coins at a time")
     }
 
     let tcpmode = false
@@ -3233,7 +3245,9 @@ if(needsync){
   // Doing internal fix
   async _realFix(round, raidaIdx, coins, callback = null) {
     let rqdata, triad, rqs, resultData;
-
+    if (coins.length > this.options.maxSendCoins) {
+      return this._getError("You can't fix more than " + this.options.maxSendCoins + " coins at a time")
+    }
     let tcpmode = false
     if(coins.length >= 40) tcpmode = true
 
