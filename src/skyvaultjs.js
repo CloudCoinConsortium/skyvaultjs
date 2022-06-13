@@ -1702,7 +1702,7 @@ while(params.amount > sns.length){
       return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
     if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
         console.log("attempted to withdraw: ", params.amount)
-        return this._getError("Not enough coins, you don't have at least: ", 1 + (page - 1) * 150);
+        return this._getError("Not enough coins, you don't have at least: ", params.amount);
       }
 
 //remove desynced coins
@@ -1996,7 +1996,7 @@ while(params.amount > sns.length){
           return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
         if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
             console.log("attempted to transfer: ", params.amount)
-            return this._getError("Not enough coins, you don't have at least: ", 1 + (page - 1) * 150);
+            return this._getError("Not enough coins, you don't have at least: ", params.amount);
           }
 
     //remove desynced coins
