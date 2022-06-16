@@ -53,6 +53,7 @@ class SkyVaultJS {
     this._generateServers()
     this._initSockets()
     this._initAxios()
+    this._reInitSockets()//second attempt in case some failed the first
 
     this.__authenticResult = "authentic"
     this.__frackedResult = "fracked"
@@ -144,6 +145,13 @@ class SkyVaultJS {
 
       return rv
     })
+    //mark servers that failed as inactive then try to reconnect to them
+    for (let s in rv.serverStatuses){
+      if(s == 0 || s == null){
+        this._activeServers[s] = false
+      }
+    }
+    this._reInitSockets()
 
     return mainPromise
   }
@@ -1702,7 +1710,7 @@ while(params.amount > sns.length){
       return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
     if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
         console.log("attempted to withdraw: ", params.amount)
-        return this._getError("Not enough coins, you don't have at least: ", params.amount);
+        return this._getError("Insufficient balance");
       }
 
 //remove desynced coins
@@ -1996,7 +2004,7 @@ while(params.amount > sns.length){
           return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
         if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
             console.log("attempted to transfer: ", params.amount)
-            return this._getError("Not enough coins, you don't have at least: ", params.amount);
+            return this._getError("Insufficient balance");
           }
 
     //remove desynced coins
@@ -3820,7 +3828,7 @@ if(needsync){
       let thiz = this
       let reject = true;
       let dv = new DataView(data);
-      if(this._activeServers.includes(i))
+      if(this._activeServers[i] == true)
         reject = false;
         if(!reject || dv.getUint8(5) == 0x04){
       return new Promise(function (res, rej) {
@@ -4117,6 +4125,62 @@ if(needsync){
     }
 
     this.pmall = pms
+  }
+
+  async _reInitSockets() {
+    await this.waitForSockets()
+    let st = Date.now();
+
+    let pms = []
+    let thiz = this;
+    for (let i = 0; i < this._totalServers; i++) {
+      if(this._activeServers[i] == false){
+      pms[i] = new Promise((resolve, reject) => {
+        let socket;
+        if (_isBrowser)
+          socket = new WebSocket(this._raidaServers[i] + ":8888");
+        else {
+          socket = new _ws(this._raidaServers[i] + ":8888");
+        }
+
+
+        // Closure. Required to close 'i'
+        (function (i) {
+          socket.onopen = () => {
+            console.log("reattempting raida", i, ", milliseconds:", Date.now() - st);
+            thiz._webSockets[i] = socket;
+            thiz._activeServers[i] = true
+            resolve()
+          }
+
+          socket.onerror = e => {
+            console.log("error opening WebSocket for raida" + i + ", error: ");
+            console.log(e)
+            socket.close();
+            thiz._webSockets[i] = null;
+            resolve()
+          };
+
+          socket.onclose = e => {
+            thiz._webSockets[i] = null;
+            resolve()
+            if (e.wasClean) {
+              console.log("Connection to raida" + i + " was closed")
+            } else {
+              console.log("Connection to raida" + i + " died")
+            }
+          }
+          setTimeout(() => {
+            if (typeof (thiz._webSockets[i]) == 'undefined') {
+              console.log("failed to wait for raida" + i + ". Timeout. Terminating")
+              socket.close()
+            }
+          }, 10000);
+        })(i)
+      })
+    }}
+
+    //this.pmall = pms
   }
 
   async waitForSockets() {
