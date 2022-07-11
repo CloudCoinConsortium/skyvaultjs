@@ -21,7 +21,7 @@ class SkyVaultJS {
       prefix: "raida",
       protocol: "https",
       wsprotocol: "wss",
-      forcetcprequest: false,
+      forcetcprequest: true,
       timeout: 20000, // ms
       nexttimeout: 5000,
       defaultCoinNn: 1,
@@ -110,7 +110,7 @@ class SkyVaultJS {
     d.setUint8(8, 0x01)//coin id
     d.setUint8(12, 0xAB)// echo
     d.setUint8(13, 0xAB)// echo
-    if(this.options.forcetcprequest) d.setUint16(14, 0x02)//tcp body size
+    if (this.options.forcetcprequest) d.setUint16(14, 0x02)//tcp body size
     else d.setUint16(14, 0x01)//udp packetnumber
     d.setUint8(22, 0x3e)
     d.setUint8(23, 0x3e) // Trailing chars
@@ -142,16 +142,15 @@ class SkyVaultJS {
         }
       })
 
-
       return rv
     })
     //mark servers that failed as inactive then try to reconnect to them
-    for (let s in rv.serverStatuses){
-      if(s == 0 || s == null){
+    for (let s in rv.serverStatuses) {
+      if (s == 0 || s == null) {
         this._activeServers[s] = false
       }
     }
-    this._reInitSockets()
+    //   this._reInitSockets()
 
     return mainPromise
   }
@@ -184,8 +183,8 @@ class SkyVaultJS {
     if (coins.length > this.options.maxSendCoins) {
       return this._getError("You can't find more than " + this.options.maxSendCoins + " coins at a time")
     }
-    let tcpmode = false
-    if(coins.length >= 40) tcpmode = true
+    let tcpmode = true
+    //   if (coins.length >= 40) tcpmode = true
 
 
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -210,7 +209,7 @@ class SkyVaultJS {
       d.setUint8(8, 0x01)//coin id
       d.setUint8(12, 0xAB)// echo
       d.setUint8(13, 0xAB)// echo
-      if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 18+ 35*coins.length)//tcp body size
+      if (this.options.forcetcprequest || tcpmode) d.setUint16(14, 18 + 35 * coins.length)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       d.setUint8(22, 0x3e)
@@ -376,7 +375,7 @@ class SkyVaultJS {
 
       d.setUint8(13, 0xAB); // echo
 
-      if(this.options.forcetcprequest) d.setUint16(14, 37)//tcp body size
+      if (this.options.forcetcprequest) d.setUint16(14, 37)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       //body
@@ -475,7 +474,7 @@ class SkyVaultJS {
       d.setUint8(8, 0x00); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      if(this.options.forcetcprequest) d.setUint16(14, 58)//tcp body size
+      if (this.options.forcetcprequest) d.setUint16(14, 58)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       //body
@@ -1577,7 +1576,7 @@ class SkyVaultJS {
     let amount = 0;
     let amountNotes = 0;
 
-    let tcpmode = false
+    let tcpmode = true
 
     for (let i in params.coins) {
       let cc = params.coins[i];
@@ -1587,7 +1586,7 @@ class SkyVaultJS {
     if (amount > this.options.maxSendCoins) {
       return this._getError("You can't deposit more than " + this.options.maxSendCoins + " coins at a time")
     }
-    if (amountNotes >=40) tcpmode = true
+    //   if (amountNotes >= 40) tcpmode = true
 
     let memo = 'memo' in params ? params['memo'] : "Send";
     let from = "SkyVaultJS";
@@ -1600,83 +1599,83 @@ class SkyVaultJS {
 
 
     let ab, d;
-      let rqdata = [];
-      let packetsize = 95;
-      packetsize += 22; //header size
-      packetsize += 19 * amountNotes;
+    let rqdata = [];
+    let packetsize = 95;
+    packetsize += 22; //header size
+    packetsize += 19 * amountNotes;
 
-      for (let i = 0; i < this._totalServers; i++) {
-        ab = new ArrayBuffer(packetsize);
-        d = new DataView(ab); //rqdata.push(ab)
+    for (let i = 0; i < this._totalServers; i++) {
+      ab = new ArrayBuffer(packetsize);
+      d = new DataView(ab); //rqdata.push(ab)
 
-          d.setUint8(ab.byteLength - 1, 0x3e);
-          d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
 
-          d.setUint8(2, i); //raida id
+      d.setUint8(2, i); //raida id
 
-          d.setUint8(5, 100); //command deposit
+      d.setUint8(5, 100); //command deposit
 
-          d.setUint8(8, 0x01); //coin id
+      d.setUint8(8, 0x01); //coin id
 
-          d.setUint8(12, 0xAB); // echo
+      d.setUint8(12, 0xAB); // echo
 
-          d.setUint8(13, 0xAB); // echo
+      d.setUint8(13, 0xAB); // echo
 
-          if(this.options.forcetcprequest || tcpmode) d.setUint16(14, packetsize-22)//tcp body size
-          else d.setUint16(14, 0x01)//udp packetnumber
-
-
-          for (let x = 0; x < 12; x++) {
-            d.setUint8(22 + x, challange[x]);
-          }
-
-          d.setUint32(34, chcrc32); //body
-          for (let j = 0; j < params['coins'].length; j++) {
-            let coin = params['coins'][j];
-
-            if ('an' in coin) {
-              for (let x = 0; x < coin.an.length; x++) {
-                if (coin.an[x] == null) coin.an[x] = this._generatePan();
-              }
-            }
-
-            if (!this._validateCoin(coin)) {
-              return this._getError("Invalid coin. Idx " + j);
-            }
-            d.setUint32(38 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
-
-            for (let x = 0; x < 16; x++) {
-              d.setUint8(38 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
-            }
-          }
-
-          d.setUint32(38 + amountNotes * 19, to << 8); //owner
-
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(41 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
-          } //transaction guid
+      if (this.options.forcetcprequest || tcpmode) d.setUint16(14, packetsize - 22)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
 
 
-          d.setUint8(57 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
-
-          d.setUint8(58 + amountNotes * 19, times.getUTCMonth() + 1); //month
-
-          d.setUint8(59 + amountNotes * 19, times.getUTCDate()); //day
-
-          d.setUint8(60 + amountNotes * 19, times.getUTCHours()); //hour
-
-          d.setUint8(61 + amountNotes * 19, times.getUTCMinutes()); //minute
-
-          d.setUint8(62 + amountNotes * 19, times.getUTCSeconds()); //second
-
-        rqdata.push(ab);
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x]);
       }
+
+      d.setUint32(34, chcrc32); //body
+      for (let j = 0; j < params['coins'].length; j++) {
+        let coin = params['coins'][j];
+
+        if ('an' in coin) {
+          for (let x = 0; x < coin.an.length; x++) {
+            if (coin.an[x] == null) coin.an[x] = this._generatePan();
+          }
+        }
+
+        if (!this._validateCoin(coin)) {
+          return this._getError("Invalid coin. Idx " + j);
+        }
+        d.setUint32(38 + j * 19, coin.sn << 8); //rqdata[i].sns.push(coin.sn)
+
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(38 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+        }
+      }
+
+      d.setUint32(38 + amountNotes * 19, to << 8); //owner
+
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(41 + amountNotes * 19 + x, parseInt(guid.substr(x * 2, 2), 16));
+      } //transaction guid
+
+
+      d.setUint8(57 + amountNotes * 19, times.getUTCFullYear() - 2000); //year
+
+      d.setUint8(58 + amountNotes * 19, times.getUTCMonth() + 1); //month
+
+      d.setUint8(59 + amountNotes * 19, times.getUTCDate()); //day
+
+      d.setUint8(60 + amountNotes * 19, times.getUTCHours()); //hour
+
+      d.setUint8(61 + amountNotes * 19, times.getUTCMinutes()); //minute
+
+      d.setUint8(62 + amountNotes * 19, times.getUTCSeconds()); //second
+
+      rqdata.push(ab);
+    }
 
     await this.waitForSockets();
 
     let rqs;
 
-      rqs = this._launchRequests("send", rqdata, callback, tcpmode);
+    rqs = this._launchRequests("send", rqdata, callback, tcpmode);
 
     let rv = this._getGenericMainPromise(rqs, params['coins']).then(result => {
       result.transaction_id = guid;
@@ -1686,7 +1685,8 @@ class SkyVaultJS {
     });
 
     let pm = new Promise((resolve, reject) => {
-      setTimeout(() => {this.apiFixTransferSync()
+      setTimeout(() => {
+        this.apiFixTransferSync()
       }, 500);
     });
     return rv;
@@ -1700,28 +1700,28 @@ class SkyVaultJS {
     if (!('amount' in params)) {
       return this._getError("Invalid input data. Amount is required");
     }
-let needsync = false
-let sns = []
-let page = 0
-let gcRqs
-while(params.amount > sns.length){
-    gcRqs = await this._getCoins(coin, page, callback)
-    if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-      return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
-    if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
+    let needsync = false
+    let sns = []
+    let page = 0
+    let gcRqs
+    while (params.amount > sns.length) {
+      gcRqs = await this._getCoins(coin, page, callback)
+      if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
+        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+      if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
         console.log("attempted to withdraw: ", params.amount)
         return this._getError("Insufficient balance");
       }
 
-//remove desynced coins
+      //remove desynced coins
       for (let sn in gcRqs.coinsPerRaida) {
         let yescount = 0;
         gcRqs.coinsPerRaida[sn].forEach((e, i) => {
-           if (e == 'yes') {
+          if (e == 'yes') {
             yescount++
           }
         })
-        if(sns.includes(sn)){
+        if (sns.includes(sn)) {
           delete gcRqs.coins[sn]
         }
         else if (yescount < 20) {
@@ -1730,9 +1730,9 @@ while(params.amount > sns.length){
         }
       }
 
-    sns = sns.concat(Object.keys(gcRqs.coins))
-    page++
-}
+      sns = sns.concat(Object.keys(gcRqs.coins))
+      page++
+    }
 
 
 
@@ -1749,8 +1749,8 @@ while(params.amount > sns.length){
     if (coinsToReceive.length > this.options.maxCoins) {
       return this._getError("You can't withdraw more than " + this.options.maxCoins + " coins at a time")
     }
-    let tcpmode = false
-    if(coinsToReceive.length >= 40) tcpmode = true
+    let tcpmode = true
+    //   if (coinsToReceive.length >= 40) tcpmode = true
 
     let response
     if (coinsToReceive.length > 0) {
@@ -1773,7 +1773,7 @@ while(params.amount > sns.length){
         d.setUint8(8, 0x01); //coin id
         d.setUint8(12, 0xAB); // echo
         d.setUint8(13, 0xAB); // echo
-        if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 126 + 3 * coinsToReceive.length)//tcp body size
+        if (this.options.forcetcprequest || tcpmode) d.setUint16(14, 126 + 3 * coinsToReceive.length)//tcp body size
         else d.setUint16(14, 0x01)//udp packetnumber
 
         //body
@@ -1841,9 +1841,10 @@ while(params.amount > sns.length){
       return response
     }
 
-    if(needsync){
+    if (needsync) {
       let pm = new Promise((resolve, reject) => {
-        setTimeout(() => {this.apiFixTransferSync()
+        setTimeout(() => {
+          this.apiFixTransferSync()
         }, 500);
       });
     }
@@ -1998,34 +1999,34 @@ while(params.amount > sns.length){
     let sns = []
     let page = 0
     let gcRqs
-    while(params.amount > sns.length){
-        gcRqs = await this._getCoins(coin, page, callback)
-        if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
-          return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
-        if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
-            console.log("attempted to transfer: ", params.amount)
-            return this._getError("Insufficient balance");
-          }
+    while (params.amount > sns.length) {
+      gcRqs = await this._getCoins(coin, page, callback)
+      if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
+        return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
+      if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
+        console.log("attempted to transfer: ", params.amount)
+        return this._getError("Insufficient balance");
+      }
 
-    //remove desynced coins
-          for (let sn in gcRqs.coinsPerRaida) {
-            let yescount = 0;
-            gcRqs.coinsPerRaida[sn].forEach((e, i) => {
-               if (e == 'yes') {
-                yescount++
-              }
-            })
-            if(sns.includes(sn)){
-              delete gcRqs.coins[sn]
-            }
-            else if (yescount < 20) {
-              needsync = true
-              delete gcRqs.coins[sn]
-            }
+      //remove desynced coins
+      for (let sn in gcRqs.coinsPerRaida) {
+        let yescount = 0;
+        gcRqs.coinsPerRaida[sn].forEach((e, i) => {
+          if (e == 'yes') {
+            yescount++
           }
+        })
+        if (sns.includes(sn)) {
+          delete gcRqs.coins[sn]
+        }
+        else if (yescount < 20) {
+          needsync = true
+          delete gcRqs.coins[sn]
+        }
+      }
 
-        sns = sns.concat(Object.keys(gcRqs.coins))
-        page++
+      sns = sns.concat(Object.keys(gcRqs.coins))
+      page++
     }
 
     let rvalues = this._pickCoinsAmountFromArrayWithExtra(sns, params.amount)
@@ -2039,180 +2040,178 @@ while(params.amount > sns.length){
     // Assemble input data for each Raida Server
     //response.changeCoinSent = changeRequired
     response.code = SkyVaultJS.ERR_NO_ERROR
-if(needsync){
-    let pm = new Promise((resolve, reject) => {
-      setTimeout(() => {
-        this.apiFixTransferSync()
-      }, 500)
-    })
-}
+    if (needsync) {
+      let pm = new Promise((resolve, reject) => {
+        setTimeout(() => {
+          this.apiFixTransferSync()
+        }, 500)
+      })
+    }
     return response
   }
 
 
-    // NFT TEST CREATE
-    async apiNFTTestCreate(params, callback = null) {
-      if (!'coins' in params) {
-        return this._getError("Invalid input data. No coins");
-      }
-
-      if (!Array.isArray(params['coins'])) {
-        return this._getError("Invalid input data. Coins must be an array");
-      }
-
-      if (params['coins'].length > 13) {
-        return this._getError("Invalid input data. can only create 13 coins. add additional coins with 'Add Coins' service");
-      }
-
-      if (!'guid' in params) {
-        return this._getError("Invalid input data. GUID is not defined");
-      }
-      if (!'meta' in params) {
-        return this._getError("Invalid input data. meta is not defined");
-      }
-      if (!'data' in params) {
-        return this._getError("Invalid input data. data is not defined");
-      }
-
-      let rqdata = []
-      let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-      let chcrc32 = this._crc32(challange, 0, 12)
-
-      let data = params.data;
-      let meta = params.meta;
-
-      let datalength = data.length;
-      let metalength = meta.length;
-
-      let guid = params.guid;
-      let coins = params['coins'];
-      if (coins.length > this.options.maxSendCoins) {
-        return this._getError("You can't deposit more than " + this.options.maxSendCoins + " coins at a time")
-      }
-      let tcpmode = false
-      if(coins.length >= 40) tcpmode = true
-
-      let response
-        // Assemble input data for each Raida Server
-        let ab, d;
-        for (let i = 0; i < this._totalServers; i++) {
-
-          ab = new ArrayBuffer(62 + (19 * coins.length) + datalength + metalength);
-          d = new DataView(ab); //
-
-          d.setUint8(ab.byteLength - 1, 0x3e);
-          d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
-          d.setUint8(2, i); //raida id
-          d.setUint8(5, 200); //command test create
-          d.setUint8(8, 0x02); //coin id
-          d.setUint8(12, 0xAB); // echo
-          d.setUint8(13, 0xAB); // echo
-          if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 40 + (19 * coins.length) + datalength + metalength)//tcp body size
-          else d.setUint16(14, 0x01)//udp packetnumber
-
-          //body
-          for (let x = 0; x < 12; x++) {
-            d.setUint8(22 + x, challange[x])
-          }
-          d.setUint32(34, chcrc32)
-
-          for (let x = 0; x < 16; x++) {
-            d.setUint8(38 + x, parseInt(guid.substr(x * 2, 2), 16));
-          }
-
-          for (let j = 0; j < coins.length; j++) {
-            let coin = coins[j];
-
-            if (!this._validateCoin(coin)) {
-              return this._getError("Invalid coin. Idx " + j);
-            }
-            d.setUint32(54 + j * 19, coin.sn << 8);
-
-            for (let x = 0; x < 16; x++) {
-              d.setUint8(54 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
-            }
-          }
-
-          d.setUint8(54 + 19 * coins.length, 0xAB)
-          d.setUint8(55 + 19 * coins.length, 0xCD)
-          d.setUint8(56 + 19 * coins.length, 0xEF)
-
-          for (let m = 0; m < metalength; m++) {
-            d.setUint8(57 + m, parseInt(meta.substr(m * 2, 2), 16));
-          }
-
-          d.setUint8(57 + 19 * coins.length + metalength, 0xAB)
-          d.setUint8(58 + 19 * coins.length + metalength, 0xCD)
-          d.setUint8(59 + 19 * coins.length + metalength, 0xEF)
-
-          for (let d = 0; d < datalength; d++) {
-            d.setUint8(60 + d, parseInt(meta.substr(d * 2, 2), 16));
-          }
-
-          rqdata.push(ab)
-        } // Launch Requests
-
-        // Launch Requests
-        await this.waitForSockets()
-        let rqs = this._launchRequests("test create", rqdata, callback, tcpmode)
-
-        let rv = {
-          status: 'done',
-          code: SkyVaultJS.ERR_NO_ERROR,
-          errors: []
-        }
-        let e = 0;
-        let mainPromise = rqs.then(response => {
-          this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
-            if (serverResponse === "error" || serverResponse == "network") {
-              rv.errors[i] = "no response"
-              e++;
-            } else {
-              let dView = new DataView(serverResponse)
-              let status = dView.getUint8(2)
-
-              if (status == 51) {
-                rv.errors[i] = "coins already have nfts";
-                e++;
-              }
-              if (status == 52) {
-                rv.errors[i] = "no data or meta data";
-                e++;
-              }
-              if (status == 53) {
-                rv.errors[i] = "too much data for coins submitted";
-                e++;
-              }
-              if (status == 54) {
-                rv.errors[i] = "guid is not unique";
-                e++;
-              }
-              if (status == 55) {
-                rv.errors[i] = "coins are counterfeit";
-                e++;
-              }
-              if (status == 250 || status == 50)
-              {
-                //a++;
-              }
-              else {
-                rv.errors[i] = "raida error code " + status;
-                e++;
-              }
-            }
-          })
-
-          if(e > 13)
-          {
-            rv.status = "error";
-            rv.code = SkyVaultJS.ERR_HAS_ERROR;
-          }
-
-          return rv
-        })
-
-        return mainPromise
+  // NFT TEST CREATE
+  async apiNFTTestCreate(params, callback = null) {
+    if (!'coins' in params) {
+      return this._getError("Invalid input data. No coins");
     }
+
+    if (!Array.isArray(params['coins'])) {
+      return this._getError("Invalid input data. Coins must be an array");
+    }
+
+    if (params['coins'].length > 13) {
+      return this._getError("Invalid input data. can only create 13 coins. add additional coins with 'Add Coins' service");
+    }
+
+    if (!'guid' in params) {
+      return this._getError("Invalid input data. GUID is not defined");
+    }
+    if (!'meta' in params) {
+      return this._getError("Invalid input data. meta is not defined");
+    }
+    if (!'data' in params) {
+      return this._getError("Invalid input data. data is not defined");
+    }
+
+    let rqdata = []
+    let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    let chcrc32 = this._crc32(challange, 0, 12)
+
+    let data = params.data;
+    let meta = params.meta;
+
+    let datalength = data.length;
+    let metalength = meta.length;
+
+    let guid = params.guid;
+    let coins = params['coins'];
+    if (coins.length > this.options.maxSendCoins) {
+      return this._getError("You can't deposit more than " + this.options.maxSendCoins + " coins at a time")
+    }
+    let tcpmode = true
+    //   if (coins.length >= 40) tcpmode = true
+
+    let response
+    // Assemble input data for each Raida Server
+    let ab, d;
+    for (let i = 0; i < this._totalServers; i++) {
+
+      ab = new ArrayBuffer(62 + (19 * coins.length) + datalength + metalength);
+      d = new DataView(ab); //
+
+      d.setUint8(ab.byteLength - 1, 0x3e);
+      d.setUint8(ab.byteLength - 2, 0x3e); // Trailing chars
+      d.setUint8(2, i); //raida id
+      d.setUint8(5, 200); //command test create
+      d.setUint8(8, 0x02); //coin id
+      d.setUint8(12, 0xAB); // echo
+      d.setUint8(13, 0xAB); // echo
+      if (this.options.forcetcprequest || tcpmode) d.setUint16(14, 40 + (19 * coins.length) + datalength + metalength)//tcp body size
+      else d.setUint16(14, 0x01)//udp packetnumber
+
+      //body
+      for (let x = 0; x < 12; x++) {
+        d.setUint8(22 + x, challange[x])
+      }
+      d.setUint32(34, chcrc32)
+
+      for (let x = 0; x < 16; x++) {
+        d.setUint8(38 + x, parseInt(guid.substr(x * 2, 2), 16));
+      }
+
+      for (let j = 0; j < coins.length; j++) {
+        let coin = coins[j];
+
+        if (!this._validateCoin(coin)) {
+          return this._getError("Invalid coin. Idx " + j);
+        }
+        d.setUint32(54 + j * 19, coin.sn << 8);
+
+        for (let x = 0; x < 16; x++) {
+          d.setUint8(54 + j * 19 + (3 + x), parseInt(coin.an[i].substr(x * 2, 2), 16));
+        }
+      }
+
+      d.setUint8(54 + 19 * coins.length, 0xAB)
+      d.setUint8(55 + 19 * coins.length, 0xCD)
+      d.setUint8(56 + 19 * coins.length, 0xEF)
+
+      for (let m = 0; m < metalength; m++) {
+        d.setUint8(57 + m, parseInt(meta.substr(m * 2, 2), 16));
+      }
+
+      d.setUint8(57 + 19 * coins.length + metalength, 0xAB)
+      d.setUint8(58 + 19 * coins.length + metalength, 0xCD)
+      d.setUint8(59 + 19 * coins.length + metalength, 0xEF)
+
+      for (let d = 0; d < datalength; d++) {
+        d.setUint8(60 + d, parseInt(meta.substr(d * 2, 2), 16));
+      }
+
+      rqdata.push(ab)
+    } // Launch Requests
+
+    // Launch Requests
+    await this.waitForSockets()
+    let rqs = this._launchRequests("test create", rqdata, callback, tcpmode)
+
+    let rv = {
+      status: 'done',
+      code: SkyVaultJS.ERR_NO_ERROR,
+      errors: []
+    }
+    let e = 0;
+    let mainPromise = rqs.then(response => {
+      this._parseMainPromise(response, 0, rv, (serverResponse, i) => {
+        if (serverResponse === "error" || serverResponse == "network") {
+          rv.errors[i] = "no response"
+          e++;
+        } else {
+          let dView = new DataView(serverResponse)
+          let status = dView.getUint8(2)
+
+          if (status == 51) {
+            rv.errors[i] = "coins already have nfts";
+            e++;
+          }
+          if (status == 52) {
+            rv.errors[i] = "no data or meta data";
+            e++;
+          }
+          if (status == 53) {
+            rv.errors[i] = "too much data for coins submitted";
+            e++;
+          }
+          if (status == 54) {
+            rv.errors[i] = "guid is not unique";
+            e++;
+          }
+          if (status == 55) {
+            rv.errors[i] = "coins are counterfeit";
+            e++;
+          }
+          if (status == 250 || status == 50) {
+            //a++;
+          }
+          else {
+            rv.errors[i] = "raida error code " + status;
+            e++;
+          }
+        }
+      })
+
+      if (e > 13) {
+        rv.status = "error";
+        rv.code = SkyVaultJS.ERR_HAS_ERROR;
+      }
+
+      return rv
+    })
+
+    return mainPromise
+  }
 
   _getRandomInt(max) {
     return Math.floor(Math.random() * Math.floor(max));
@@ -2234,8 +2233,8 @@ if(needsync){
       return this._getError("You can't sync more than " + this.options.maxCoins + " coins at a time")
     }
 
-    let tcpmode = false
-    if(sns.length >= 120) tcpmode = true
+    let tcpmode = true
+    if (sns.length >= 120) tcpmode = true
 
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
@@ -2250,7 +2249,7 @@ if(needsync){
       d.setUint8(8, 0x01); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      if(this.options.forcetcprequest || tcpmode) d.setUint16(14, 37 + 3*sns.length)//tcp body size
+      if (this.options.forcetcprequest || tcpmode) d.setUint16(14, 37 + 3 * sns.length)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       //body
@@ -2356,8 +2355,8 @@ if(needsync){
 
   // Doing actual transfer
   async _doTransfer(coin, guid, to, tags, coinsToSend, callback) {
-    let tcpmode = false
-    if(coinsToSend >= 120) tcpmode = true
+    let tcpmode = true
+    if (coinsToSend >= 120) tcpmode = true
     let times = new Date(Date.now())
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
@@ -2374,7 +2373,7 @@ if(needsync){
       d.setUint8(8, 0x01); //coin id
       d.setUint8(12, 0xAB); // echo
       d.setUint8(13, 0xAB); // echo
-      if(this.options.forcetcprequest ||tcpmode) d.setUint16(14, 113 + (3 * coinsToSend.length))//tcp body size
+      if (this.options.forcetcprequest || tcpmode) d.setUint16(14, 113 + (3 * coinsToSend.length))//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       for (let x = 0; x < 12; x++) {
@@ -2529,7 +2528,7 @@ if(needsync){
       d.setUint8(12, 0xAB); // echo
 
       d.setUint8(13, 0xAB); // echo
-      if(this.options.forcetcprequest ||bufferlength - 22 > 1440) d.setUint16(14, bufferlength - 22)//tcp body size
+      if (this.options.forcetcprequest || bufferlength - 22 > 1440) d.setUint16(14, bufferlength - 22)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       for (let x = 0; x < 12; x++) {
@@ -2724,7 +2723,7 @@ if(needsync){
       d.setUint8(8, 0x00);//coin id
       d.setUint8(12, 0xAB);// echo
       d.setUint8(13, 0xAB);// echo
-      if(this.options.forcetcprequest ) d.setUint16(14, 37)//tcp body size
+      if (this.options.forcetcprequest) d.setUint16(14, 37)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -2762,7 +2761,7 @@ if(needsync){
       console.log("main response")
       console.log(response)
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
-        console.log("response r " +rIdx)
+        console.log("response r " + rIdx)
         console.log(response)
         console.log(this._activeServers)
         if (!(rIdx in this._activeServers)) {
@@ -2832,7 +2831,7 @@ if(needsync){
 
       let needFix = false;
 
-      console.log("ra="+ra+" rf="+rf+ " re="+re)
+      console.log("ra=" + ra + " rf=" + rf + " re=" + re)
       let rresult = this._gradeCoin(ra, rf, re);
 
       if (rresult == this.__frackedResult) {
@@ -2874,7 +2873,8 @@ if(needsync){
       return rv;
     });
     let pm = new Promise((resolve, reject) => {
-      setTimeout(() => {this.apiFixTransferSync()
+      setTimeout(() => {
+        this.apiFixTransferSync()
       }, 500);
     });
     return rqs;
@@ -3130,7 +3130,7 @@ if(needsync){
       d.setUint8(8, 0x01);//coin id
       d.setUint8(12, 0xAB);// echo
       d.setUint8(13, 0xAB);// echo
-      if(this.options.forcetcprequest ) d.setUint16(14, 39)//tcp body size
+      if (this.options.forcetcprequest) d.setUint16(14, 39)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
       d.setUint8(ab.byteLength - 3, 1)//biggest returned denomination
@@ -3177,7 +3177,7 @@ if(needsync){
           return
         }
 
-        if(status == 66) {
+        if (status == 66) {
           console.log("page error")
           skipRaidas.push(rIdx)
           p++
@@ -3217,7 +3217,7 @@ if(needsync){
 
       // Fail only if counterfeit. Other errors are fine
       let result = this._gradeCoin(a, f, e)
-      if(p > 20)
+      if (p > 20)
         return this._getErrorCode(SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS, "no coins in wallet on ths page")
 
       if (result == this.__counterfeitResult)
@@ -3257,7 +3257,7 @@ if(needsync){
       return this._getError("You can't fix more than " + this.options.maxSendCoins + " coins at a time")
     }
     let tcpmode = false
-    if(coins.length >= 40) tcpmode = true
+    if (coins.length >= 40) tcpmode = true
 
     rqdata = this._formRequestData(coins, false, 11);
     await this.waitForSockets()
@@ -3288,7 +3288,7 @@ if(needsync){
 
     d.setUint8(13, 0xAB); // echo
 
-    if(this.options.forcetcprequest ||tcpmode) d.setUint16(14, 118 + 19 * coins.length)//tcp body size
+    if (this.options.forcetcprequest || tcpmode) d.setUint16(14, 118 + 19 * coins.length)//tcp body size
     else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -3394,7 +3394,7 @@ if(needsync){
         }
         d.setUint8(12, 0xAB)// echo
         d.setUint8(13, 0xAB)// echo
-        if(this.options.forcetcprequest ||amount >= 40) d.setUint16(14, 18 + (bodylength * amount))//tcp body size
+        if (this.options.forcetcprequest || amount >= 40) d.setUint16(14, 18 + (bodylength * amount))//tcp body size
         else d.setUint16(14, 0x01)//udp packetnumber
 
 
@@ -3772,7 +3772,7 @@ if(needsync){
     for (let i = 0; i < response.length; i++) {
       let serverResponse
 
-      console.log("rrr"+i)
+      console.log("rrr" + i)
       console.log(response[i])
       if (response[i].status != 'fulfilled' || response[i].value == undefined) {
         this._addDetails(rv)
@@ -3824,44 +3824,6 @@ if(needsync){
     }
   }
 
-  _wsConnectTCP(data, i, st) {
-      let thiz = this
-      let reject = true;
-      let dv = new DataView(data);
-      if(this._activeServers[i] == true)
-        reject = false;
-        if(!reject || dv.getUint8(5) == 0x04){
-      return new Promise(function (res, rej) {
-        let socket;
-        if (_isBrowser) socket = new WebSocket(url);else {
-          socket = new _ws(url);
-        }
-        socket.binaryType = "arraybuffer";
-        socket.onopen = e => {
-          console.log("sending ", i, Date.now() - st);
-          dv.setUint8(2, i);
-          socket.send(data);
-        };
-        socket.onmessage = e => {
-          let restime = Date.now() - st;
-          console.log("recieving ", i, restime);
-          if(restime > thiz.highestrestime)
-          thiz.highestrestime = restime;
-          res(e);
-          socket.close(1000);
-        };
-        socket.onerror = e => {
-          console.log("ws error: ", e.message);
-          rej(e);
-          socket.close();
-        };
-      });
-    }else{
-      return new Promise((res, rej)=>{rej()});
-    }
-
-  }
-
   _wsConnect(data, i, st, tcp = false) {
     let thiz = this
 
@@ -3882,10 +3844,10 @@ if(needsync){
         v += "" + dv.getUint8(p) + " "
       }
       console.log(v)
-      if(tcp){
+      if (tcp) {
         let socket;
-        if (_isBrowser) socket = new WebSocket(thiz._raidaServers[i]+":9999");else {
-          socket = new _ws(thiz._raidaServers[i]+":9999");
+        if (_isBrowser) socket = new WebSocket(thiz._raidaServers[i] + ":9999"); else {
+          socket = new _ws(thiz._raidaServers[i] + ":9999");
         }
         socket.binaryType = "arraybuffer";
         socket.onopen = e => {
@@ -3896,8 +3858,8 @@ if(needsync){
         socket.onmessage = e => {
           let restime = Date.now() - st;
           console.log("recieving tcp ", i, restime);
-          if(restime > thiz.highestrestime)
-          thiz.highestrestime = restime;
+          if (restime > thiz.highestrestime)
+            thiz.highestrestime = restime;
           res(e);
           socket.close(1000);
         };
@@ -3906,28 +3868,35 @@ if(needsync){
           rej(e);
           socket.close();
         };
-    } else {
-      thiz._webSockets[i].onmessage = e => {
-        let restime = Date.now() - st;
-        if (restime > thiz.highestrestime)
-          thiz.highestrestime = restime;
+      } else {
+        thiz._webSockets[i].onmessage = e => {
+          let restime = Date.now() - st;
+          if (restime > thiz.highestrestime)
+            thiz.highestrestime = restime;
 
-        console.log("received r"+i)
-        console.log(e)
+          console.log("received r" + i)
+          console.log(e)
 
-        res(e);
-      };
+          res(e);
+        };
 
-      thiz._webSockets[i].onerror = e => {
-        console.log("ws error: ", e.message);
-        rej(e);
-      };
-      thiz._webSockets[i].send(data);
-    }
+        thiz._webSockets[i].onclose = e => {
+          console.log("ws closed: ", e.message);
+          rej(e);
+        }
+
+        thiz._webSockets[i].onerror = e => {
+          console.log("ws error: ", e.message);
+          rej(e);
+        };
+
+        console.log("SENDING r " + i)
+        thiz._webSockets[i].send(data);
+      }
     });
   }
 
-  _launchRequests(url, params = null, callback = null, tcpmode = false, servers = null, data = null) {
+  _launchRequests(url, params = null, callback = null, tcpmode = true, servers = null, data = null) {
     if (params == null) params = {};
     let iteratedServersIdxs;
 
@@ -3960,7 +3929,6 @@ if(needsync){
       (function (ridx) {
         let pm = thiz._wsConnect(rparams[ridx], ridx, st, tcpmode).then(response => {
           console.log("received resposs " + ridx)
-          console.log(response)
           console.log(response.data)
           if (callback != null) {
             callback(ridx, url, data)
@@ -3974,6 +3942,7 @@ if(needsync){
           }
           return null
         })
+
         pms.push(pm)
       })(ridx)
     }
@@ -4134,51 +4103,52 @@ if(needsync){
     let pms = []
     let thiz = this;
     for (let i = 0; i < this._totalServers; i++) {
-      if(this._activeServers[i] == false){
-      pms[i] = new Promise((resolve, reject) => {
-        let socket;
-        if (_isBrowser)
-          socket = new WebSocket(this._raidaServers[i] + ":8888");
-        else {
-          socket = new _ws(this._raidaServers[i] + ":8888");
-        }
-
-
-        // Closure. Required to close 'i'
-        (function (i) {
-          socket.onopen = () => {
-            console.log("reattempting raida", i, ", milliseconds:", Date.now() - st);
-            thiz._webSockets[i] = socket;
-            thiz._activeServers[i] = true
-            resolve()
+      if (this._activeServers[i] == false) {
+        pms[i] = new Promise((resolve, reject) => {
+          let socket;
+          if (_isBrowser)
+            socket = new WebSocket(this._raidaServers[i] + ":8888");
+          else {
+            socket = new _ws(this._raidaServers[i] + ":8888");
           }
 
-          socket.onerror = e => {
-            console.log("error opening WebSocket for raida" + i + ", error: ");
-            console.log(e)
-            socket.close();
-            thiz._webSockets[i] = null;
-            resolve()
-          };
 
-          socket.onclose = e => {
-            thiz._webSockets[i] = null;
-            resolve()
-            if (e.wasClean) {
-              console.log("Connection to raida" + i + " was closed")
-            } else {
-              console.log("Connection to raida" + i + " died")
+          // Closure. Required to close 'i'
+          (function (i) {
+            socket.onopen = () => {
+              console.log("reattempting raida", i, ", milliseconds:", Date.now() - st);
+              thiz._webSockets[i] = socket;
+              thiz._activeServers[i] = true
+              resolve()
             }
-          }
-          setTimeout(() => {
-            if (typeof (thiz._webSockets[i]) == 'undefined') {
-              console.log("failed to wait for raida" + i + ". Timeout. Terminating")
-              socket.close()
+
+            socket.onerror = e => {
+              console.log("error opening WebSocket for raida" + i + ", error: ");
+              console.log(e)
+              socket.close();
+              thiz._webSockets[i] = null;
+              resolve()
+            };
+
+            socket.onclose = e => {
+              thiz._webSockets[i] = null;
+              resolve()
+              if (e.wasClean) {
+                console.log("Connection to raida" + i + " was closed")
+              } else {
+                console.log("Connection to raida" + i + " died")
+              }
             }
-          }, 10000);
-        })(i)
-      })
-    }}
+            setTimeout(() => {
+              if (typeof (thiz._webSockets[i]) == 'undefined') {
+                console.log("failed to wait for raida" + i + ". Timeout. Terminating")
+                socket.close()
+              }
+            }, 10000);
+          })(i)
+        })
+      }
+    }
 
     //this.pmall = pms
   }
