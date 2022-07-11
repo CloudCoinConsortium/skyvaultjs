@@ -1705,7 +1705,7 @@ class SkyVaultJS {
     let page = 0
     let gcRqs
     while (params.amount > sns.length) {
-      gcRqs = await this._getCoins(coin, page, callback)
+      gcRqs = await this._getCoins(coin, page, callback, params.amount)
       if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
       if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
@@ -1874,9 +1874,6 @@ class SkyVaultJS {
     if (!('amount' in params))
       return this._getError("Invalid params. Amount is not defined")
 
-    console.log("hhh0")
-    console.log(params)
-    console.log(params.guid)
     let guid = ""
     if (!('guid' in params)) {
       guid = this._generatePan()
@@ -1886,11 +1883,6 @@ class SkyVaultJS {
       if (!/^([A-Fa-f0-9]{32})$/.test(guid))
         return this._getError("Invalid GUID format")
     }
-
-
-    console.log("hhh1")
-    console.log(params)
-    console.log(params.guid)
 
     let merchant_address = params.to
     let reportUrl = await this._resolveDNS(merchant_address, "TXT")
@@ -1915,8 +1907,6 @@ class SkyVaultJS {
     let rv = this.apiTransfer(params, callback).then(response => {
       if (response.status == "error")
         return response
-
-      console.log("g=" + guid)
 
       response.guid = guid
       let rAx = axios.create()
@@ -1973,10 +1963,6 @@ class SkyVaultJS {
     let memo = 'memo' in params ? params['memo'] : "Transfer from SN#" + coin.sn
     let guid
 
-    console.log("hhh3")
-    console.log(params)
-    console.log(params.guid)
-
     if (!('guid' in params)) {
       guid = this._generatePan()
       params.guid = guid
@@ -1991,16 +1977,13 @@ class SkyVaultJS {
     else
       from = "SN " + coin.sn
 
-    console.log("hhh4")
-    console.log(params)
-    console.log(params.guid)
     let tags = this._getObjectMemo(memo, from)
     let needsync = false
     let sns = []
     let page = 0
     let gcRqs
     while (params.amount > sns.length) {
-      gcRqs = await this._getCoins(coin, page, callback)
+      gcRqs = await this._getCoins(coin, page, callback, params.amount)
       if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_COUNTERFEIT_COIN)
         return this._getErrorCode(SkyVaultJS.ERR_RESPONSE_TOO_FEW_PASSED, "The coin is counterfeit")
       if ('code' in gcRqs && gcRqs.code == SkyVaultJS.ERR_NOT_ENOUGH_CLOUDCOINS) {
@@ -3110,14 +3093,20 @@ class SkyVaultJS {
     return rqs
   }
 
-  async _getCoins(coin, page = 0, callback = null) {
+  async _getCoins(coin, page = 0, callback = null, amount = 0) {
     let rqdata = []
     let challange = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     let chcrc32 = this._crc32(challange, 0, 12)
     // Assemble input data for each Raida Server
     //
     //
-    console.log("get coins")
+    let idx = Math.ceil((amount * 2) / 1000)
+    if (idx < 1 || idx > 255) {
+      idx = 255
+    }
+
+    //
+    console.log("get coins " + idx)
     console.log(coin)
     let ab, d;
     for (let i = 0; i < this._totalServers; i++) {
@@ -3133,7 +3122,8 @@ class SkyVaultJS {
       if (this.options.forcetcprequest) d.setUint16(14, 39)//tcp body size
       else d.setUint16(14, 0x01)//udp packetnumber
 
-      d.setUint8(ab.byteLength - 3, 1)//biggest returned denomination
+      //d.setUint8(ab.byteLength - 3, 1)//biggest returned denomination
+      d.setUint8(ab.byteLength - 3, idx)//biggest returned denomination
       d.setUint32(38, coin.sn << 8)
       for (let x = 0; x < 12; x++) {
         d.setUint8(22 + x, challange[x])
