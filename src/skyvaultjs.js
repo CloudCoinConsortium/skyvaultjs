@@ -3101,7 +3101,10 @@ class SkyVaultJS {
     //
     //
     let idx = Math.ceil((amount * 2) / 1000)
-    if (idx < 1 || idx > 255) {
+    if (idx < 1) {
+      idx = 1
+    }
+    if (idx > 255) {
       idx = 255
     }
 
