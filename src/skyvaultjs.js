@@ -116,9 +116,7 @@ class SkyVaultJS {
     d.setUint8(23, 0x3e) // Trailing chars
 
     await this.waitForSockets()
-    console.log("waited")
-    let rqs = this._launchRequests("echo", ab, callback)
-    console.log("waited2")
+    let rqs = this._launchRequests("echo", ab, callback, true, null, null, 4000)
     let rv = {
       status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -3830,7 +3828,7 @@ class SkyVaultJS {
     }
   }
 
-  _wsConnect(data, i, st, tcp = false) {
+  _wsConnect(data, i, st, tcp = false, timeout = 10000) {
     let thiz = this
 /*
     if (this._webSockets[i] == null || data == null) {
@@ -3882,7 +3880,7 @@ class SkyVaultJS {
             console.log("failed to wait for raida" + i + ". Timeout. Terminating")
             rej("timeout");
           }
-        }, 5000);
+        }, timeout);
       } else {
         /*
         thiz._webSockets[i].onmessage = e => {
@@ -3913,7 +3911,7 @@ class SkyVaultJS {
     });
   }
 
-  _launchRequests(url, params = null, callback = null, tcpmode = true, servers = null, data = null) {
+  _launchRequests(url, params = null, callback = null, tcpmode = true, servers = null, data = null, timeout = 10000) {
     if (params == null) params = {};
     let iteratedServersIdxs;
 
@@ -3944,7 +3942,7 @@ class SkyVaultJS {
       let ridx = iteratedServersIdxs[i];
 
       (function (ridx) {
-        let pm = thiz._wsConnect(rparams[ridx], ridx, st, tcpmode).then(response => {
+        let pm = thiz._wsConnect(rparams[ridx], ridx, st, tcpmode, timeout).then(response => {
           if (callback != null) {
             callback(ridx, url, data)
           }
@@ -3963,27 +3961,6 @@ class SkyVaultJS {
     }
 
     return allSettled(pms)
-    /*
-            .then(response => {
-            console.log("all promises settled")
-            console.log(response)
-
-            res(response)
-          })
-
-                Promise.race(pms).then(r => {
-                  setTimeout(() => {res()}, this.options.nexttimeout);
-                })//next reply timeout
-                Promise.allSettled(pms).then(r => {res()});
-        }).then(response2 => {
-          console.log("all promises settled external")
-          console.log(response2)
-          //     this.options.nexttimeout = this.highestrestime + 1000;
-          return allSettled(response2);
-        });
-
-        return tm;
-        */
   }
 
 
