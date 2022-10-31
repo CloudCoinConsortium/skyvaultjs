@@ -1388,7 +1388,8 @@ class SkyVaultJS {
     // Embed Stack
     let esparams = {
       coins: [cc],
-      template: ddata
+      template: ddata,
+      isid: true,
     }
 
     let bdata = await this.embedInImage(esparams)
@@ -1464,6 +1465,10 @@ class SkyVaultJS {
       return this._getError("Invalid input data. No coins")
     }
 
+    let isid = false
+    if ('isid' in params)
+      isid = true
+
     if (!Array.isArray(params['coins'])) {
       return this._getError("Invalid input data. Coins must be an array")
     }
@@ -1529,7 +1534,12 @@ class SkyVaultJS {
     myu8[5] = 0x4c
     myu8[6] = 0x44
     myu8[7] = 0x63
-    myu8[11] = 0x01
+
+    if (isid) {
+      myu8[11] = 0x0
+    } else {
+      myu8[11] = 0x01
+    }
 
     //let tBuffer = Buffer.from(data)
     // Data
