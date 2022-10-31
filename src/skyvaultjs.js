@@ -118,6 +118,7 @@ class SkyVaultJS {
     await this.waitForSockets()
     console.log("waited")
     let rqs = this._launchRequests("echo", ab, callback)
+    console.log("waited2")
     let rv = {
       status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -127,7 +128,9 @@ class SkyVaultJS {
       details: []
     }
 
+    console.log("waited3")
     let mainPromise = rqs.then(response => {
+    console.log("waited4")
       this._parseMainPromise(response, 0, rv, serverResponse => {
         if (serverResponse === "error" || serverResponse === "network")
           return
@@ -3841,6 +3844,7 @@ class SkyVaultJS {
       thiz._webSockets[i].binaryType = "arraybuffer";
       dv.setUint8(2, i);
 
+      let returned = false
       console.log("Data r" + i)
       let v = ""
       for (let p = 0; p < dv.byteLength; p++) {
@@ -3865,12 +3869,20 @@ class SkyVaultJS {
             thiz.highestrestime = restime;
           res(e);
           socket.close(1000);
+          returned = true
         };
         socket.onerror = e => {
           console.log("tcp ws error: ", e.message);
           rej(e);
           socket.close();
+          returned = true
         };
+        setTimeout(function() {
+          if (!returned) {
+            console.log("failed to wait for raida" + i + ". Timeout. Terminating")
+            rej("timeout");
+          }
+        }, 10000);
       } else {
         thiz._webSockets[i].onmessage = e => {
           let restime = Date.now() - st;
@@ -3931,8 +3943,6 @@ class SkyVaultJS {
 
       (function (ridx) {
         let pm = thiz._wsConnect(rparams[ridx], ridx, st, tcpmode).then(response => {
-          console.log("received resposs " + ridx)
-          console.log(response.data)
           if (callback != null) {
             callback(ridx, url, data)
           }
@@ -4091,7 +4101,7 @@ class SkyVaultJS {
               console.log("failed to wait for raida" + i + ". Timeout. Terminating")
               socket.close()
             }
-          }, 10000);
+          }, 14000);
         })(i)
       })
     }
@@ -4114,7 +4124,6 @@ class SkyVaultJS {
           else {
             socket = new _ws(this._raidaServers[i] + ":8888");
           }
-
 
           // Closure. Required to close 'i'
           (function (i) {
@@ -4146,6 +4155,7 @@ class SkyVaultJS {
               if (typeof (thiz._webSockets[i]) == 'undefined') {
                 console.log("failed to wait for raida" + i + ". Timeout. Terminating")
                 socket.close()
+                resolve()
               }
             }, 10000);
           })(i)
