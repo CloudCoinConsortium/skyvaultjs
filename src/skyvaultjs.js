@@ -51,9 +51,7 @@ class SkyVaultJS {
     this.highestrestime = 0
 
     this._generateServers()
- //   this._initSockets()
     this._initAxios()
-//    this._reInitSockets()//second attempt in case some failed the first
 
     this.__authenticResult = "authentic"
     this.__frackedResult = "fracked"
@@ -116,7 +114,7 @@ class SkyVaultJS {
     d.setUint8(23, 0x3e) // Trailing chars
 
     await this.waitForSockets()
-    let rqs = this._launchRequests("echo", ab, callback, true, null, null, 4000)
+    let rqs = this._launchRequests("echo", ab, callback, true, null, null, 8000)
     let rv = {
       status: 'done',
       code: SkyVaultJS.ERR_NO_ERROR,
@@ -3843,12 +3841,11 @@ class SkyVaultJS {
       dv.setUint8(2, i);
 
       let returned = false
-      console.log("Data r" + i)
+      console.log("Data to raida " + i)
       let v = ""
       for (let p = 0; p < dv.byteLength; p++) {
         v += "" + dv.getUint8(p) + " "
       }
-      console.log(v)
       if (tcp) {
         let socket;
         if (_isBrowser) socket = new WebSocket(thiz._raidaServers[i] + ":9999"); else {
@@ -3915,6 +3912,9 @@ class SkyVaultJS {
     if (params == null) params = {};
     let iteratedServersIdxs;
 
+    console.log("Launching " + url)
+    console.log(params)
+
     if (servers != null) {
       iteratedServersIdxs = servers;
     } else {
@@ -3960,7 +3960,12 @@ class SkyVaultJS {
       })(ridx)
     }
 
-    return allSettled(pms)
+    let allDone = allSettled(pms)
+
+    console.log("Requests to " + url + " finished")
+
+    return allDone
+
   }
 
 
@@ -4033,67 +4038,9 @@ class SkyVaultJS {
   }
 
 
-  async _initSockets() {
-    let st = Date.now();
-
-    let pms = []
-    let thiz = this;
-    for (let i = 0; i < this._totalServers; i++) {
-      this._activeServers[i] = false
-      pms[i] = new Promise((resolve, reject) => {
-        let socket;
-        if (_isBrowser)
-          socket = new WebSocket(this._raidaServers[i] + ":8888");
-        else {
-          socket = new _ws(this._raidaServers[i] + ":8888");
-        }
-
-
-        // Closure. Required to close 'i'
-        (function (i) {
-          socket.onopen = () => {
-            console.log("initializing raida", i, ", milliseconds:", Date.now() - st);
-            thiz._webSockets[i] = socket;
-            thiz._activeServers[i] = true
-            resolve()
-          }
-
-          socket.onerror = e => {
-            console.log("error opening WebSocket for raida" + i + ", error: ");
-            console.log(e)
-            socket.close();
-            thiz._webSockets[i] = null;
-            resolve()
-          };
-
-          socket.onclose = e => {
-            thiz._webSockets[i] = null;
-            resolve()
-            if (e.wasClean) {
-              console.log("Connection to raida" + i + " was closed")
-            } else {
-              console.log("Connection to raida" + i + " died")
-            }
-          }
-          setTimeout(() => {
-            if (typeof (thiz._webSockets[i]) == 'undefined') {
-              console.log("failed to wait for raida" + i + ". Timeout. Terminating")
-              socket.close()
-            }
-          }, 14000);
-        })(i)
-      })
-    }
-
-    this.pmall = pms
-  }
-
-
+  // No need to implement it so far. All sockets will be created upon a request
   async waitForSockets() {
-    console.log("waiting for sockets")
     return 
-
-//    return Promise.all(this.pmall)
   }
 
 
