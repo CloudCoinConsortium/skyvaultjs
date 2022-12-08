@@ -4,6 +4,7 @@ var _ws = require('ws')
 import CryptoJS from 'crypto-js'
 
 
+console.log("V.1.84.0")
 
 import allSettled from 'promise.allsettled'
 
@@ -46,7 +47,6 @@ class SkyVaultJS {
     this.pmall = null
     this._raidaServers = []
     this._webSockets = []
-    this._activeServers = {}
     this._totalServers = 25
     this.highestrestime = 0
 
@@ -143,13 +143,6 @@ class SkyVaultJS {
 
       return rv
     })
-    //mark servers that failed as inactive then try to reconnect to them
-    for (let s in rv.serverStatuses) {
-      if (s == 0 || s == null) {
-        this._activeServers[s] = false
-      }
-    }
-    //   this._reInitSockets()
 
     return mainPromise
   }
@@ -2755,14 +2748,6 @@ class SkyVaultJS {
       this._parseMainPromise(response, 0, rv, (response, rIdx) => {
         console.log("response r " + rIdx)
         console.log(response)
-        console.log(this._activeServers)
-        if (!(rIdx in this._activeServers)) {
-          rv.raidaStatuses[rIdx] = "u";
-          rv.balancesPerRaida[rIdx] = null;
-
-          re++;
-          return;
-        }
         if (response == "network") {
           rv.raidaStatuses[rIdx] = "n";
           rv.balancesPerRaida[rIdx] = null;
@@ -2771,6 +2756,7 @@ class SkyVaultJS {
         }
 
         if (response == "error") {
+          console.log("baddd1")
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
           re++;
@@ -2778,6 +2764,7 @@ class SkyVaultJS {
         }
 
         if (response.byteLength < 12) {
+          console.log("baddd")
           rv.raidaStatuses[rIdx] = "e";
           rv.balancesPerRaida[rIdx] = null;
           re++;
@@ -2841,9 +2828,11 @@ class SkyVaultJS {
       }
 
       let a = max;
-      let f = Object.keys(this._activeServers).length - a;
+      let f = 25 - a;
 
+      console.log("result " + a + " f="+ f)
       let result = this._gradeCoin(a, f, 0);
+      console.log("result " + result)
 
       if (!this._validResult(result)) balance = -1;
 
@@ -3237,7 +3226,7 @@ class SkyVaultJS {
       }
       for (let sn in rv.coins) {
         let a = rv.coins[sn].passed
-        let f = Object.keys(this._activeServers).length - a
+        let f = 25 - a
         let result = this._gradeCoin(a, f, 0)
         if (this._validResult(result)) {
           nrv.coins[sn] = {
